@@ -42,8 +42,8 @@ window.addEventListener("load", function () {
     frameworkUrl: buildUrl + "/WebglBuild.framework.js",
     codeUrl: buildUrl + "/WebglBuild.wasm",
     streamingAssetsUrl: "StreamingAssets",
-    companyName: "ARTNROLL",
-    productName: "BitBullzTap",
+    companyName: "Artnroll Games",
+    productName: "BitBullz Evolution",
     productVersion: "0.4",
     showBanner: unityShowBanner,
   };

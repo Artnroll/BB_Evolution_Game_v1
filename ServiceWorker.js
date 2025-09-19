@@ -1,4 +1,4 @@
-const cacheName = "ARTNROLL-BitBullzTap-0.4";
+const cacheName = "Artnroll Games-BitBullz Evolution-0.4";
 const contentToCache = [
     "Build/WebglBuild.loader.js",
     "Build/WebglBuild.framework.js",
