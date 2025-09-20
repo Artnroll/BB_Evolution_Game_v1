@@ -22,22 +22,7 @@
     </div>
     <script src="index.js"></script>
     <script>
-        function sendTelegramUsernameToUnity() {
-            if (window.Telegram && window.Telegram.WebApp.initDataUnsafe.user) {
-                const tgUser = window.Telegram.WebApp.initDataUnsafe.user;
-                const username = tgUser.username || tgUser.first_name || ("user_" + tgUser.id);
-
-                // Send to Unity
-                gameInstance.SendMessage('GameProgressManager', 'SetUsernameFromTelegram', username);
-            } else {
-                console.log("Telegram user data not available");
-            }
-        }
-
         window.Telegram.WebApp.ready();
-        sendTelegramUsernameToUnity();
     </script>
-
-    <script src="index.js"></script>
 </body>
 </html>

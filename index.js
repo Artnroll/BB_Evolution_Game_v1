@@ -71,8 +71,19 @@ window.addEventListener("load", function () {
     createUnityInstance(canvas, config, (progress) => {
       progressBarFull.style.width = 100 * progress + "%";
     }).then((unityInstance) => {
-      unityInstanceRef = unityInstance;
-      loadingBar.style.display = "none";
+        unityInstanceRef = unityInstance;
+        loadingBar.style.display = "none";
+
+        // --- Inject Telegram username after Unity is ready ---
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe.user) {
+            const tgUser = window.Telegram.WebApp.initDataUnsafe.user;
+            const username = tgUser.username || tgUser.first_name || ("user_" + tgUser.id);
+
+            console.log("Sending Telegram username to Unity:", username);
+            unityInstance.SendMessage("GameProgressManager", "SetUsernameFromTelegram", username);
+        } else {
+            console.log("Telegram user data not available");
+        }
     }).catch((message) => {
       alert(message);
     });
