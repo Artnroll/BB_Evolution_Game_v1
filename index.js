@@ -1,8 +1,8 @@
-window.addEventListener("load", function () {
+/*window.addEventListener("load", function () {
     if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("ServiceWorker.js");
     }
-});
+});*/
 var unityInstanceRef;
 var unsubscribe;
 var container = document.querySelector("#unity-container");
