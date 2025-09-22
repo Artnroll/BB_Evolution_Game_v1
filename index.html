@@ -6,41 +6,14 @@
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
 
-    <!-- PlayDeck bridge loaded before Unity instance -->
+    <!-- PlayDeck bridge -->
     <script src="playdeckBridge.js"></script>
 </head>
 <body>
-    <div id="unity-container" class="unity-desktop">
-        <canvas id="unity-canvas" tabindex="-1"></canvas>
-        <div id="unity-loading-bar">
-            <div id="unity-logo"></div>
-            <div id="unity-progress-bar-empty">
-                <div id="unity-progress-bar-full"></div>
-            </div>
-        </div>
-        <div id="unity-warning"></div>
-        <div id="unity-footer">
-            <div id="unity-logo-title-footer"></div>
-            <div id="unity-fullscreen-button"></div>
-            <div id="unity-build-title">BitBullz Evolution</div>
-        </div>
-    </div>
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
 
     <script>
         const canvas = document.querySelector("#unity-canvas");
-        const loadingBarFull = document.querySelector("#unity-progress-bar-full");
-        const fullscreenButton = document.querySelector("#unity-fullscreen-button");
-
-        function unityShowBanner(msg, type) {
-            const warningBanner = document.querySelector("#unity-warning");
-            const div = document.createElement('div');
-            div.innerHTML = msg;
-            if (type === 'error') div.style = 'background:red;padding:10px;';
-            else if (type === 'warning') div.style = 'background:yellow;padding:10px;';
-            warningBanner.appendChild(div);
-            setTimeout(() => { warningBanner.removeChild(div); }, 5000);
-        }
-
         const buildUrl = "Build";
         const loaderUrl = buildUrl + "/WebglBuild.loader.js";
 
@@ -52,42 +25,27 @@
             companyName: "Artnroll Games",
             productName: "BitBullz Evolution",
             productVersion: "0.4",
-            showBanner: unityShowBanner
+            showBanner: (msg, type) => console.log(type, msg)
         };
 
-        // Load Unity instance
         const script = document.createElement("script");
         script.src = loaderUrl;
         script.onload = () => {
             createUnityInstance(canvas, config, (progress) => {
-                loadingBarFull.style.width = 100 * progress + "%";
-
-                // Safe PlayDeck call
+                // Optional: forward loading progress to PlayDeck
                 if (window.playDeckBridge?.SetLoading) {
                     try { window.playDeckBridge.SetLoading(progress * 100); } catch (e) { console.warn(e); }
                 }
             }).then((unityInstance) => {
                 window.unityInstance = unityInstance;
-
-                // Initialize PlayDeck after Unity instance exists
                 if (window.playDeckBridge?.init) {
                     window.playDeckBridge.init(unityInstance);
                 }
-
-                // Hide loading bar safely
-                document.querySelector("#unity-loading-bar").style.display = "none";
-
-                // Fullscreen button
-                fullscreenButton.onclick = () => {
-                    if (window.vuplex) window.vuplex.SetFullscreen(1);
-                };
-            }).catch((err) => {
-                console.error("Unity WebGL instance failed to load:", err);
-            });
+            }).catch(err => console.error("Unity failed to load:", err));
         };
         document.body.appendChild(script);
 
-        // Listen to Telegram messages
+        // Forward Play button from Telegram
         window.addEventListener('message', (ev) => {
             const data = ev.data?.playdeck;
             if (!data || !window.unityInstance) return;
