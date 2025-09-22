@@ -33,8 +33,14 @@
         }
     };
 
-    // Expose bridge globally for message forwarding
+    // Expose bridge globally
     window.playDeckBridge = bridge;
+
+    // Add SetLoading function so Unity .jslib can call it
+    window.playDeckBridge.SetLoading = function (progress) {
+        console.log("PlayDeckBridge progress:", progress);
+        bridge.setLoadingProgress(progress); // forwards to parent if needed
+    };
 
     // Listen to PlayDeck wrapper messages (Play button etc.)
     window.addEventListener('message', (ev) => {
