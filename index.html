@@ -8,6 +8,24 @@
 
     <!-- PlayDeck bridge -->
     <script src="playdeckBridge.js"></script>
+
+    <!-- Canvas and page styling for portrait -->
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden; /* prevent page scroll */
+        }
+
+        #unity-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            touch-action: none; /* prevent browser scrolling */
+        }
+    </style>
 </head>
 <body>
     <canvas id="unity-canvas" tabindex="-1"></canvas>
