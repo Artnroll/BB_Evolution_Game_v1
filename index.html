@@ -9,7 +9,7 @@
     <!-- PlayDeck bridge -->
     <script src="playdeckBridge.js"></script>
 
-    <!-- Canvas and page styling for portrait -->
+    <!-- Canvas container and scaling for portrait -->
     <style>
         html, body {
             margin: 0;
@@ -19,19 +19,29 @@
             overflow: hidden; /* prevent page scroll */
         }
 
-        #unity-canvas {
+        #unity-container {
+            position: relative;
             width: 100%;
             height: 100%;
+            overflow: hidden;
+        }
+
+        #unity-canvas {
             display: block;
+            width: 100%;
+            height: 100%;
             touch-action: none; /* prevent browser scrolling */
         }
     </style>
 </head>
 <body>
-    <canvas id="unity-canvas" tabindex="-1"></canvas>
+    <div id="unity-container">
+        <canvas id="unity-canvas" tabindex="-1"></canvas>
+    </div>
 
     <script>
-        const canvas = document.querySelector("#unity-canvas");
+        const canvas = document.getElementById("unity-canvas");
+        const container = document.getElementById("unity-container");
         const buildUrl = "Build";
         const loaderUrl = buildUrl + "/WebglBuild.loader.js";
 
@@ -46,6 +56,7 @@
             showBanner: (msg, type) => console.log(type, msg)
         };
 
+        // Create Unity instance
         const script = document.createElement("script");
         script.src = loaderUrl;
         script.onload = () => {
@@ -59,9 +70,33 @@
                 if (window.playDeckBridge?.init) {
                     window.playDeckBridge.init(unityInstance);
                 }
+                // Initial resize
+                resizeCanvas();
             }).catch(err => console.error("Unity failed to load:", err));
         };
         document.body.appendChild(script);
+
+        // Handle window resize to maintain portrait aspect ratio (9:16)
+        function resizeCanvas() {
+            if (!window.unityInstance) return;
+
+            const targetAspect = 9 / 16;
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            const windowAspect = width / height;
+
+            if (windowAspect > targetAspect) {
+                // Too wide, letterbox horizontally
+                canvas.style.width = (height * targetAspect) + "px";
+                canvas.style.height = height + "px";
+            } else {
+                // Too tall, letterbox vertically
+                canvas.style.width = width + "px";
+                canvas.style.height = (width / targetAspect) + "px";
+            }
+        }
+
+        window.addEventListener('resize', resizeCanvas);
 
         // Forward Play button from Telegram
         window.addEventListener('message', (ev) => {
