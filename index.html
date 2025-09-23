@@ -9,21 +9,21 @@
     <!-- PlayDeck bridge -->
     <script src="playdeckBridge.js"></script>
 
-    <!-- Make canvas fill mobile screen -->
     <style>
         html, body {
             margin: 0;
             padding: 0;
             height: 100%;
             width: 100%;
-            overflow: hidden;
+            overflow: hidden; /* no scroll */
         }
 
         #unity-canvas {
             width: 100%;
             height: 100%;
             display: block;
-            touch-action: none;
+            touch-action: none; /* prevent browser gestures */
+            background: black; /* avoids white flashes */
         }
     </style>
 </head>
@@ -35,6 +35,11 @@
         const buildUrl = "Build";
         const loaderUrl = buildUrl + "/WebglBuild.loader.js";
 
+        // Cap resolution scale to prevent crashes on mobile
+        const pixelRatioCap = /Mobi|Android|iPhone|iPad|iPod/.test(navigator.userAgent)
+            ? Math.min(window.devicePixelRatio, 1.5)
+            : window.devicePixelRatio;
+
         const config = {
             dataUrl: buildUrl + "/WebglBuild.data",
             frameworkUrl: buildUrl + "/WebglBuild.framework.js",
@@ -43,6 +48,7 @@
             companyName: "Artnroll Games",
             productName: "BitBullz Evolution",
             productVersion: "0.4",
+            devicePixelRatio: pixelRatioCap,
             showBanner: (msg, type) => console.log(type, msg)
         };
 
@@ -50,6 +56,7 @@
         script.src = loaderUrl;
         script.onload = () => {
             createUnityInstance(canvas, config, (progress) => {
+                // Forward loading progress to PlayDeck
                 if (window.playDeckBridge?.SetLoading) {
                     try { window.playDeckBridge.SetLoading(progress * 100); } catch (e) { console.warn(e); }
                 }
@@ -62,6 +69,7 @@
         };
         document.body.appendChild(script);
 
+        // Forward Play button from Telegram
         window.addEventListener('message', (ev) => {
             const data = ev.data?.playdeck;
             if (!data || !window.unityInstance) return;
