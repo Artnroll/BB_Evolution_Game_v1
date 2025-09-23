@@ -1,56 +1,19 @@
 <!DOCTYPE html>
-<html lang="en-us">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <title>BitBullz Evolution | Unity WebGL</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
 
+    <!-- PlayDeck bridge -->
     <script src="playdeckBridge.js"></script>
-    <script>
-        window.playdeckBridge = {
-            SetLoading: function (progress) { console.log("Loading:", progress); },
-            GameEnd: function () { console.log("Game End"); },
-            Analytics: function (eventName, payload) { console.log("Analytics:", eventName, payload); }
-        };
-    </script>
 </head>
 <body>
-    <div id="unity-container" class="unity-desktop">
-        <canvas id="unity-canvas" width="512" height="1024" tabindex="-1"></canvas>
-        <div id="unity-loading-bar">
-            <div id="unity-logo"></div>
-            <div id="unity-progress-bar-empty">
-                <div id="unity-progress-bar-full"></div>
-            </div>
-        </div>
-        <div id="unity-warning"></div>
-        <div id="unity-footer">
-            <div id="unity-logo-title-footer"></div>
-            <div id="unity-fullscreen-button"></div>
-            <div id="unity-build-title">BitBullz Evolution</div>
-        </div>
-    </div>
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
 
     <script>
         const canvas = document.querySelector("#unity-canvas");
-
-        function unityShowBanner(msg, type) {
-            const warningBanner = document.querySelector("#unity-warning");
-            function updateBannerVisibility() {
-                warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
-            }
-            const div = document.createElement('div');
-            div.innerHTML = msg;
-            warningBanner.appendChild(div);
-            if (type == 'error') div.style = 'background:red;padding:10px;';
-            else if (type == 'warning') {
-                div.style = 'background:yellow;padding:10px;';
-                setTimeout(() => { warningBanner.removeChild(div); updateBannerVisibility(); }, 5000);
-            }
-            updateBannerVisibility();
-        }
-
         const buildUrl = "Build";
         const loaderUrl = buildUrl + "/WebglBuild.loader.js";
 
@@ -62,28 +25,33 @@
             companyName: "Artnroll Games",
             productName: "BitBullz Evolution",
             productVersion: "0.4",
-            showBanner: unityShowBanner
+            showBanner: (msg, type) => console.log(type, msg)
         };
 
         const script = document.createElement("script");
         script.src = loaderUrl;
         script.onload = () => {
             createUnityInstance(canvas, config, (progress) => {
-                document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
-                if (window.PlayDeck_SetLoading) window.PlayDeck_SetLoading(Math.round(progress * 100));
-            }).then(unityInstance => {
+                // Optional: forward loading progress to PlayDeck
+                if (window.playDeckBridge?.SetLoading) {
+                    try { window.playDeckBridge.SetLoading(progress * 100); } catch (e) { console.warn(e); }
+                }
+            }).then((unityInstance) => {
                 window.unityInstance = unityInstance;
-                if (window.playDeckBridge && typeof window.playDeckBridge.init === 'function') window.playDeckBridge.init(unityInstance);
-                document.querySelector("#unity-loading-bar").style.display = "none";
-                document.querySelector("#unity-fullscreen-button").onclick = () => { if (window.vuplex) window.vuplex.SetFullscreen(1); };
-            }).catch(alert);
+                if (window.playDeckBridge?.init) {
+                    window.playDeckBridge.init(unityInstance);
+                }
+            }).catch(err => console.error("Unity failed to load:", err));
         };
         document.body.appendChild(script);
 
-        window.addEventListener('message', ev => {
-            const data = ev.data && ev.data.playdeck;
-            if (!data) return;
-            if (data.method === 'play' && window.unityInstance) window.unityInstance.SendMessage('LoadingScreenUI', 'OnPlayButton');
+        // Forward Play button from Telegram
+        window.addEventListener('message', (ev) => {
+            const data = ev.data?.playdeck;
+            if (!data || !window.unityInstance) return;
+            if (data.method === 'play') {
+                window.unityInstance.SendMessage('LoadingScreenUI', 'OnPlayButton');
+            }
         });
     </script>
 </body>
