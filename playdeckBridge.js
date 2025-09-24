@@ -73,6 +73,11 @@
             bridge.unityInstance.SendMessage('LoadingScreenUI', 'OnPlayButton');
         }
     });
+
+    window.playDeckBridge.GameEnd = function () {
+        console.log('PlayDeckBridge.GameEnd called');
+        bridge.gameEnd();
+    };
 })();
 
 
