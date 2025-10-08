@@ -1,4 +1,4 @@
-﻿// PlayDeck Bridge for Unity WebGL with CORRECT AdsGram SDK
+﻿// PlayDeck Bridge for Unity WebGL with CORRECT AdsGram SDK - FIXED SCOPE
 (function () {
     'use strict';
 
@@ -73,19 +73,22 @@
         ShowRewardedAd: function () {
             console.log("🔧 ShowRewardedAd called");
 
+            // FIX: Store 'this' in a variable to preserve context
+            const self = this;
+
             return new Promise((resolve, reject) => {
                 // Browser simulator for testing
-                if (!this.isTelegram) {
+                if (!self.isTelegram) {
                     console.log("🔄 SIMULATOR: Showing fake rewarded ad");
                     setTimeout(() => {
                         const simulateSuccess = true; // Change to false to test failure
                         if (simulateSuccess) {
                             console.log("🔄 SIMULATOR: Ad completed successfully");
-                            this.notifyUnityAdCompleted(true);
+                            self.notifyUnityAdCompleted(true); // Use self instead of this
                             resolve(true);
                         } else {
                             console.log("🔄 SIMULATOR: Ad failed");
-                            this.notifyUnityAdCompleted(false);
+                            self.notifyUnityAdCompleted(false); // Use self instead of this
                             reject(false);
                         }
                     }, 2000);
@@ -93,44 +96,44 @@
                 }
 
                 // Real AdsGram implementation
-                if (!this.isAdsGramReady) {
+                if (!self.isAdsGramReady) {
                     console.error("❌ AdsGram not ready");
-                    this.notifyUnityAdCompleted(false);
+                    self.notifyUnityAdCompleted(false); // Use self instead of this
                     reject(false);
                     return;
                 }
 
-                console.log("🔧 Showing real rewarded ad with unit ID:", this.rewardedAdUnitId);
+                console.log("🔧 Showing real rewarded ad with unit ID:", self.rewardedAdUnitId);
 
-                this.currentRewardResolve = resolve;
-                this.currentRewardReject = reject;
+                self.currentRewardResolve = resolve;
+                self.currentRewardReject = reject;
 
                 try {
                     // CORRECT method call based on AdsGram docs
-                    window.AdsGram.showRewarded(this.rewardedAdUnitId, {
+                    window.AdsGram.showRewarded(self.rewardedAdUnitId, {
                         onReward: (reward) => {
                             console.log("✅ Rewarded ad completed successfully, reward:", reward);
-                            this.clearRewardCallbacks();
-                            this.notifyUnityAdCompleted(true);
+                            self.clearRewardCallbacks();
+                            self.notifyUnityAdCompleted(true);
                             resolve(true);
                         },
                         onClose: () => {
                             console.log("❌ Rewarded ad closed without reward");
-                            this.clearRewardCallbacks();
-                            this.notifyUnityAdCompleted(false);
+                            self.clearRewardCallbacks();
+                            self.notifyUnityAdCompleted(false);
                             reject(false);
                         },
                         onError: (error) => {
                             console.error("🔥 Rewarded ad error:", error);
-                            this.clearRewardCallbacks();
-                            this.notifyUnityAdCompleted(false);
+                            self.clearRewardCallbacks();
+                            self.notifyUnityAdCompleted(false);
                             reject(false);
                         }
                     });
                 } catch (error) {
                     console.error("🔥 Exception in showRewarded:", error);
-                    this.clearRewardCallbacks();
-                    this.notifyUnityAdCompleted(false);
+                    self.clearRewardCallbacks();
+                    self.notifyUnityAdCompleted(false);
                     reject(false);
                 }
             });
@@ -158,6 +161,54 @@
         PreloadAds: function () {
             if (this.isTelegram && this.isAdsGramReady) {
                 this.preloadRewardedAds();
+            }
+        },
+
+        SetLoading: function (progress) {
+            console.log("SetLoading:", progress);
+            try {
+                if (window.parent && window.parent.postMessage) {
+                    window.parent.postMessage({
+                        playdeck: {
+                            method: 'loading',
+                            value: progress
+                        }
+                    }, '*');
+                }
+            } catch (e) {
+                console.warn("SetLoading failed:", e);
+            }
+        },
+
+        GameEnd: function () {
+            console.log("GameEnd called");
+            try {
+                if (window.parent && window.parent.postMessage) {
+                    window.parent.postMessage({
+                        playdeck: {
+                            method: 'gameEnd'
+                        }
+                    }, '*');
+                }
+            } catch (e) {
+                console.warn("GameEnd failed:", e);
+            }
+        },
+
+        Analytics: function (eventName, payload) {
+            console.log("Analytics:", eventName, payload);
+            try {
+                if (window.parent && window.parent.postMessage) {
+                    window.parent.postMessage({
+                        playdeck: {
+                            method: 'analytics',
+                            event: eventName,
+                            data: payload
+                        }
+                    }, '*');
+                }
+            } catch (e) {
+                console.warn("Analytics failed:", e);
             }
         }
     };
