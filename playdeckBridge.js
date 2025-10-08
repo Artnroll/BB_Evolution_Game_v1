@@ -71,21 +71,24 @@
         },
 
         ShowRewardedAd: function () {
-            console.log("ShowRewardedAd called");
+            console.log("🔧 ShowRewardedAd called");
+
+            // Store reference to 'this' to avoid scope issues
+            const self = this;
 
             return new Promise((resolve, reject) => {
                 // Browser simulator for testing
-                if (!this.isTelegram) {
-                    console.log("SIMULATOR: Showing fake rewarded ad");
+                if (!self.isTelegram) {
+                    console.log("🔄 SIMULATOR: Showing fake rewarded ad");
                     setTimeout(() => {
                         const simulateSuccess = true; // Change to false to test failure
                         if (simulateSuccess) {
-                            console.log(" SIMULATOR: Ad completed successfully");
-                            this.notifyUnityAdCompleted(true);
+                            console.log("🔄 SIMULATOR: Ad completed successfully");
+                            self.notifyUnityAdCompleted(true);
                             resolve(true);
                         } else {
-                            console.log("SIMULATOR: Ad failed");
-                            this.notifyUnityAdCompleted(false);
+                            console.log("🔄 SIMULATOR: Ad failed");
+                            self.notifyUnityAdCompleted(false);
                             reject(false);
                         }
                     }, 2000);
@@ -93,44 +96,44 @@
                 }
 
                 // Real AdsGram implementation
-                if (!this.isAdsGramReady) {
-                    console.error("AdsGram not ready");
-                    this.notifyUnityAdCompleted(false);
+                if (!self.isAdsGramReady) {
+                    console.error("❌ AdsGram not ready");
+                    self.notifyUnityAdCompleted(false);
                     reject(false);
                     return;
                 }
 
-                console.log("Showing real rewarded ad with unit ID:", this.rewardedAdUnitId);
+                console.log("🔧 Showing real rewarded ad with unit ID:", self.rewardedAdUnitId);
 
-                this.currentRewardResolve = resolve;
-                this.currentRewardReject = reject;
+                self.currentRewardResolve = resolve;
+                self.currentRewardReject = reject;
 
                 try {
                     // CORRECT method call based on AdsGram docs
-                    window.AdsGram.showRewarded(this.rewardedAdUnitId, {
+                    window.AdsGram.showRewarded(self.rewardedAdUnitId, {
                         onReward: (reward) => {
-                            console.log("Rewarded ad completed successfully, reward:", reward);
-                            this.clearRewardCallbacks();
-                            this.notifyUnityAdCompleted(true);
+                            console.log("✅ Rewarded ad completed successfully, reward:", reward);
+                            self.clearRewardCallbacks();
+                            self.notifyUnityAdCompleted(true);
                             resolve(true);
                         },
                         onClose: () => {
-                            console.log("Rewarded ad closed without reward");
-                            this.clearRewardCallbacks();
-                            this.notifyUnityAdCompleted(false);
+                            console.log("❌ Rewarded ad closed without reward");
+                            self.clearRewardCallbacks();
+                            self.notifyUnityAdCompleted(false);
                             reject(false);
                         },
                         onError: (error) => {
-                            console.error("Rewarded ad error:", error);
-                            this.clearRewardCallbacks();
-                            this.notifyUnityAdCompleted(false);
+                            console.error("🔥 Rewarded ad error:", error);
+                            self.clearRewardCallbacks();
+                            self.notifyUnityAdCompleted(false);
                             reject(false);
                         }
                     });
                 } catch (error) {
-                    console.error("Exception in showRewarded:", error);
-                    this.clearRewardCallbacks();
-                    this.notifyUnityAdCompleted(false);
+                    console.error("🔥 Exception in showRewarded:", error);
+                    self.clearRewardCallbacks();
+                    self.notifyUnityAdCompleted(false);
                     reject(false);
                 }
             });
@@ -142,7 +145,7 @@
         },
 
         notifyUnityAdCompleted: function (success) {
-            console.log("Notifying Unity, success:", success);
+            console.log("🔧 Notifying Unity, success:", success);
             if (this.unityInstance && this.unityInstance.SendMessage) {
                 const message = success ? "true" : "false";
                 this.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', message);
@@ -151,7 +154,7 @@
 
         AreAdsAvailable: function () {
             const available = this.isTelegram ? this.isAdsGramReady : true;
-            console.log("AreAdsAvailable:", available);
+            console.log("🔧 AreAdsAvailable:", available);
             return available;
         },
 
