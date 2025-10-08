@@ -1,227 +1,92 @@
-﻿// PlayDeck Bridge for Unity WebGL with CORRECT AdsGram SDK - FIXED SCOPE
+﻿// PlayDeck Bridge - MINIMAL WORKING VERSION
 (function () {
     'use strict';
 
-    console.log("🔧 Initializing PlayDeck Bridge with AdsGram...");
+    console.log("Initializing PlayDeck Bridge...");
 
-    const bridge = {
-        unityInstance: null,
-        currentRewardResolve: null,
-        currentRewardReject: null,
-        isAdsGramReady: false,
-        isTelegram: false,
-        rewardedAdUnitId: '15876', // Your actual ad unit ID
+    // Simple global functions that won't lose scope
+    window.PlayDeck_SetLoading = function (progress) {
+        console.log("SetLoading:", progress);
+    };
 
-        init: function (unity) {
-            console.log("🔧 Bridge initialized with Unity instance");
-            this.unityInstance = unity;
-            this.isTelegram = this.isTelegramEnvironment();
-            console.log("🔧 Is Telegram environment:", this.isTelegram);
+    window.PlayDeck_GameEnd = function () {
+        console.log("GameEnd called");
+    };
 
-            // Initialize AdsGram if in Telegram
-            if (this.isTelegram) {
-                this.initializeAdsGram();
-            } else {
-                console.log("🔧 Not in Telegram - using simulator mode");
-                this.isAdsGramReady = true;
-            }
-        },
+    window.PlayDeck_Analytics = function (eventName, payload) {
+        console.log("Analytics:", eventName, payload);
+    };
 
-        isTelegramEnvironment: function () {
-            return !!(window.Telegram && window.Telegram.WebApp);
-        },
+    window.PlayDeck_AreAdsAvailable = function () {
+        const isTelegram = !!(window.Telegram && window.Telegram.WebApp);
+        const available = isTelegram ? !!window.AdsGram : true;
+        console.log("AreAdsAvailable:", available);
+        return available;
+    };
 
-        initializeAdsGram: function () {
-            console.log("🔧 Initializing AdsGram SDK...");
+    window.PlayDeck_PreloadAds = function () {
+        console.log("PreloadAds called");
+    };
 
-            if (!window.AdsGram) {
-                console.error("❌ AdsGram SDK not found!");
-                console.log("🔧 Available global objects:", Object.keys(window));
+    window.PlayDeck_ShowRewardedAd = function () {
+        console.log("ShowRewardedAd called");
+
+        return new Promise((resolve, reject) => {
+            const isTelegram = !!(window.Telegram && window.Telegram.WebApp);
+
+            if (!isTelegram) {
+                console.log("SIMULATOR: Showing fake rewarded ad");
+                setTimeout(() => {
+                    console.log("SIMULATOR: Ad completed successfully");
+
+                    // Notify Unity directly
+                    if (window.unityInstance && window.unityInstance.SendMessage) {
+                        window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "true");
+                    }
+
+                    resolve(true);
+                }, 2000);
                 return;
             }
 
-            console.log("✅ AdsGram SDK found, methods:", Object.keys(window.AdsGram));
-
-            // CORRECT initialization based on docs
-            window.AdsGram.init()
-                .then(() => {
-                    console.log("✅ AdsGram initialized successfully");
-                    this.isAdsGramReady = true;
-
-                    // Preload rewarded ads
-                    this.preloadRewardedAds();
-                })
-                .catch((error) => {
-                    console.error("❌ AdsGram initialization failed:", error);
-                    this.isAdsGramReady = false;
-                });
-        },
-
-        preloadRewardedAds: function () {
-            if (this.isAdsGramReady && window.AdsGram.preload) {
-                console.log("🔧 Preloading rewarded ads...");
-                window.AdsGram.preload([this.rewardedAdUnitId])
-                    .then(() => {
-                        console.log("✅ Rewarded ads preloaded successfully");
-                    })
-                    .catch((error) => {
-                        console.warn("⚠️ Rewarded ads preload failed:", error);
-                    });
+            // Real AdsGram implementation
+            if (!window.AdsGram) {
+                console.error("AdsGram not available");
+                if (window.unityInstance && window.unityInstance.SendMessage) {
+                    window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
+                }
+                reject(false);
+                return;
             }
-        },
 
-        ShowRewardedAd: function () {
-            console.log("🔧 ShowRewardedAd called");
+            console.log("Showing real rewarded ad");
 
-            // FIX: Store 'this' in a variable to preserve context
-            const self = this;
-
-            return new Promise((resolve, reject) => {
-                // Browser simulator for testing
-                if (!self.isTelegram) {
-                    console.log("🔄 SIMULATOR: Showing fake rewarded ad");
-                    setTimeout(() => {
-                        const simulateSuccess = true; // Change to false to test failure
-                        if (simulateSuccess) {
-                            console.log("🔄 SIMULATOR: Ad completed successfully");
-                            self.notifyUnityAdCompleted(true); // Use self instead of this
-                            resolve(true);
-                        } else {
-                            console.log("🔄 SIMULATOR: Ad failed");
-                            self.notifyUnityAdCompleted(false); // Use self instead of this
-                            reject(false);
-                        }
-                    }, 2000);
-                    return;
-                }
-
-                // Real AdsGram implementation
-                if (!self.isAdsGramReady) {
-                    console.error("❌ AdsGram not ready");
-                    self.notifyUnityAdCompleted(false); // Use self instead of this
+            window.AdsGram.showRewarded('15876', {
+                onReward: (reward) => {
+                    console.log("Rewarded ad completed successfully");
+                    if (window.unityInstance && window.unityInstance.SendMessage) {
+                        window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "true");
+                    }
+                    resolve(true);
+                },
+                onClose: () => {
+                    console.log("Rewarded ad closed without reward");
+                    if (window.unityInstance && window.unityInstance.SendMessage) {
+                        window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
+                    }
                     reject(false);
-                    return;
-                }
-
-                console.log("🔧 Showing real rewarded ad with unit ID:", self.rewardedAdUnitId);
-
-                self.currentRewardResolve = resolve;
-                self.currentRewardReject = reject;
-
-                try {
-                    // CORRECT method call based on AdsGram docs
-                    window.AdsGram.showRewarded(self.rewardedAdUnitId, {
-                        onReward: (reward) => {
-                            console.log("✅ Rewarded ad completed successfully, reward:", reward);
-                            self.clearRewardCallbacks();
-                            self.notifyUnityAdCompleted(true);
-                            resolve(true);
-                        },
-                        onClose: () => {
-                            console.log("❌ Rewarded ad closed without reward");
-                            self.clearRewardCallbacks();
-                            self.notifyUnityAdCompleted(false);
-                            reject(false);
-                        },
-                        onError: (error) => {
-                            console.error("🔥 Rewarded ad error:", error);
-                            self.clearRewardCallbacks();
-                            self.notifyUnityAdCompleted(false);
-                            reject(false);
-                        }
-                    });
-                } catch (error) {
-                    console.error("🔥 Exception in showRewarded:", error);
-                    self.clearRewardCallbacks();
-                    self.notifyUnityAdCompleted(false);
+                },
+                onError: (error) => {
+                    console.error("Rewarded ad error:", error);
+                    if (window.unityInstance && window.unityInstance.SendMessage) {
+                        window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
+                    }
                     reject(false);
                 }
             });
-        },
-
-        clearRewardCallbacks: function () {
-            this.currentRewardResolve = null;
-            this.currentRewardReject = null;
-        },
-
-        notifyUnityAdCompleted: function (success) {
-            console.log("🔧 Notifying Unity, success:", success);
-            if (this.unityInstance && this.unityInstance.SendMessage) {
-                const message = success ? "true" : "false";
-                this.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', message);
-            }
-        },
-
-        AreAdsAvailable: function () {
-            const available = this.isTelegram ? this.isAdsGramReady : true;
-            console.log("🔧 AreAdsAvailable:", available);
-            return available;
-        },
-
-        PreloadAds: function () {
-            if (this.isTelegram && this.isAdsGramReady) {
-                this.preloadRewardedAds();
-            }
-        },
-
-        SetLoading: function (progress) {
-            console.log("SetLoading:", progress);
-            try {
-                if (window.parent && window.parent.postMessage) {
-                    window.parent.postMessage({
-                        playdeck: {
-                            method: 'loading',
-                            value: progress
-                        }
-                    }, '*');
-                }
-            } catch (e) {
-                console.warn("SetLoading failed:", e);
-            }
-        },
-
-        GameEnd: function () {
-            console.log("GameEnd called");
-            try {
-                if (window.parent && window.parent.postMessage) {
-                    window.parent.postMessage({
-                        playdeck: {
-                            method: 'gameEnd'
-                        }
-                    }, '*');
-                }
-            } catch (e) {
-                console.warn("GameEnd failed:", e);
-            }
-        },
-
-        Analytics: function (eventName, payload) {
-            console.log("Analytics:", eventName, payload);
-            try {
-                if (window.parent && window.parent.postMessage) {
-                    window.parent.postMessage({
-                        playdeck: {
-                            method: 'analytics',
-                            event: eventName,
-                            data: payload
-                        }
-                    }, '*');
-                }
-            } catch (e) {
-                console.warn("Analytics failed:", e);
-            }
-        }
+        });
     };
 
-    // Expose to global scope
-    window.playDeckBridge = bridge;
-    window.PlayDeck_SetLoading = bridge.SetLoading;
-    window.PlayDeck_GameEnd = bridge.GameEnd;
-    window.PlayDeck_Analytics = bridge.Analytics;
-    window.PlayDeck_ShowRewardedAd = bridge.ShowRewardedAd;
-    window.PlayDeck_AreAdsAvailable = bridge.AreAdsAvailable;
-    window.PlayDeck_PreloadAds = bridge.PreloadAds;
-
-    console.log("🔧 PlayDeck Bridge ready");
+    console.log("PlayDeck Bridge ready");
 
 })();
