@@ -1,68 +1,75 @@
+// PlayDeck Bridge for Unity WebGL
 (function () {
-    const parent = window.parent;
-    let unityInstance = null;
+    'use strict';
+
+    console.log("Initializing PlayDeck Bridge...");
 
     const bridge = {
-        // Initialize bridge with Unity instance
-        init(unity) {
-            unityInstance = unity;
-            console.log('PlayDeckBridge initialized with Unity instance');
+        unityInstance: null,
+
+        init: function (unity) {
+            console.log("Bridge initialized with Unity instance");
+            this.unityInstance = unity;
         },
 
-        // Loading progress (0�100)
         SetLoading: function (progress) {
-            console.log('PlayDeckBridge.SetLoading called:', progress);
+            console.log("SetLoading:", progress);
             try {
-                parent.postMessage({ playdeck: { method: 'loading', value: progress } }, '*');
+                if (window.parent && window.parent.postMessage) {
+                    window.parent.postMessage({
+                        playdeck: {
+                            method: 'loading',
+                            value: progress
+                        }
+                    }, '*');
+                }
             } catch (e) {
-                console.warn('PlayDeckBridge.SetLoading failed:', e);
+                console.warn("SetLoading failed:", e);
             }
         },
 
-        // Game ended
         GameEnd: function () {
-            console.log('PlayDeckBridge.GameEnd called');
+            console.log("GameEnd called");
             try {
-                parent.postMessage({ playdeck: { method: 'gameEnd' } }, '*');
+                if (window.parent && window.parent.postMessage) {
+                    window.parent.postMessage({
+                        playdeck: {
+                            method: 'gameEnd'
+                        }
+                    }, '*');
+                }
             } catch (e) {
-                console.warn('PlayDeckBridge.GameEnd failed:', e);
+                console.warn("GameEnd failed:", e);
             }
         },
 
-        // Analytics event
         Analytics: function (eventName, payload) {
-            console.log('PlayDeckBridge.Analytics called:', eventName, payload);
+            console.log("Analytics:", eventName, payload);
             try {
-                parent.postMessage({
-                    playdeck: {
-                        method: 'analytics',
-                        event: eventName,
-                        data: payload
-                    }
-                }, '*');
+                if (window.parent && window.parent.postMessage) {
+                    window.parent.postMessage({
+                        playdeck: {
+                            method: 'analytics',
+                            event: eventName,
+                            data: payload
+                        }
+                    }, '*');
+                }
             } catch (e) {
-                console.warn('PlayDeckBridge.Analytics failed:', e);
+                console.warn("Analytics failed:", e);
             }
         }
     };
 
-    // Expose globally
+    // Expose to global scope
     window.playDeckBridge = bridge;
 
-    // Telegram Play message listener
-    window.addEventListener('message', (ev) => {
-        const data = ev.data?.playdeck;
-        if (!data || !unityInstance) return;
+    // Also expose directly for Unity's DllImport
+    window.PlayDeck_SetLoading = bridge.SetLoading;
+    window.PlayDeck_GameEnd = bridge.GameEnd;
+    window.PlayDeck_Analytics = bridge.Analytics;
 
-        if (data.method === 'play') {
-            console.log('PlayDeckBridge received play message from Telegram');
-            if (unityInstance.SendMessage) {
-                unityInstance.SendMessage('LoadingScreenUI', 'OnPlayButton');
-            }
-        }
-    });
+    console.log("PlayDeck Bridge ready");
 
-    console.log('PlayDeckBridge loaded successfully');
 })();
-
 

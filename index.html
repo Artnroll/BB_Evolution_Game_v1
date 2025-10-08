@@ -5,76 +5,97 @@
     <title>BitBullz Evolution | Unity WebGL</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
-
-    <!-- PlayDeck bridge -->
-    <script src="playdeckBridge.js"></script>
-
     <style>
         html, body {
             margin: 0;
             padding: 0;
             height: 100%;
             width: 100%;
-            overflow: hidden; /* no scroll */
+            overflow: hidden;
         }
 
         #unity-canvas {
             width: 100%;
             height: 100%;
             display: block;
-            touch-action: none; /* prevent browser gestures */
-            background: black; /* avoids white flashes */
+            touch-action: none;
+            background: black;
         }
     </style>
 </head>
 <body>
     <canvas id="unity-canvas" tabindex="-1"></canvas>
 
+    <!-- Load bridge FIRST -->
+    <script src="playdeckBridge.js"></script>
+
     <script>
-        const canvas = document.querySelector("#unity-canvas");
-        const buildUrl = "Build";
-        const loaderUrl = buildUrl + "/WebglBuild.loader.js";
+        // Wait for bridge to load before initializing Unity
+        window.addEventListener('DOMContentLoaded', function () {
+            const canvas = document.querySelector("#unity-canvas");
+            const buildUrl = "Build";
+            const loaderUrl = buildUrl + "/WebglBuild.loader.js";
 
-        // Cap resolution scale to prevent crashes on mobile
-        const pixelRatioCap = /Mobi|Android|iPhone|iPad|iPod/.test(navigator.userAgent)
-            ? Math.min(window.devicePixelRatio, 1.5)
-            : window.devicePixelRatio;
+            const pixelRatioCap = /Mobi|Android|iPhone|iPad|iPod/.test(navigator.userAgent)
+                ? Math.min(window.devicePixelRatio, 1.5)
+                : window.devicePixelRatio;
 
-        const config = {
-            dataUrl: buildUrl + "/WebglBuild.data",
-            frameworkUrl: buildUrl + "/WebglBuild.framework.js",
-            codeUrl: buildUrl + "/WebglBuild.wasm",
-            streamingAssetsUrl: "StreamingAssets",
-            companyName: "Artnroll Games",
-            productName: "BitBullz Evolution",
-            productVersion: "0.4",
-            devicePixelRatio: pixelRatioCap,
-            showBanner: (msg, type) => console.log(type, msg)
-        };
+            const config = {
+                dataUrl: buildUrl + "/WebglBuild.data",
+                frameworkUrl: buildUrl + "/WebglBuild.framework.js",
+                codeUrl: buildUrl + "/WebglBuild.wasm",
+                streamingAssetsUrl: "StreamingAssets",
+                companyName: "Artnroll Games",
+                productName: "BitBullz Evolution",
+                productVersion: "0.4",
+                devicePixelRatio: pixelRatioCap,
+                showBanner: (msg, type) => console.log(type, msg)
+            };
 
-        const script = document.createElement("script");
-        script.src = loaderUrl;
-        script.onload = () => {
-            createUnityInstance(canvas, config, (progress) => {
-                // Forward loading progress to PlayDeck
-                if (window.playDeckBridge?.SetLoading) {
-                    try { window.playDeckBridge.SetLoading(progress * 100); } catch (e) { console.warn(e); }
-                }
-            }).then((unityInstance) => {
-                window.unityInstance = unityInstance;
-                if (window.playDeckBridge?.init) {
-                    window.playDeckBridge.init(unityInstance);
-                }
-            }).catch(err => console.error("Unity failed to load:", err));
-        };
-        document.body.appendChild(script);
+            // Test if bridge is available
+            console.log("Bridge available:", typeof window.playDeckBridge !== 'undefined');
 
-        // Forward Play button from Telegram
+            const script = document.createElement("script");
+            script.src = loaderUrl;
+            script.onload = () => {
+                createUnityInstance(canvas, config, (progress) => {
+                    console.log("Loading progress:", progress);
+                    if (window.playDeckBridge?.SetLoading) {
+                        try {
+                            window.playDeckBridge.SetLoading(progress * 100);
+                        } catch (e) {
+                            console.warn('Progress set failed:', e);
+                        }
+                    }
+                }).then((unityInstance) => {
+                    console.log("Unity loaded successfully");
+                    window.unityInstance = unityInstance;
+
+                    // Initialize bridge with Unity instance
+                    if (window.playDeckBridge?.init) {
+                        window.playDeckBridge.init(unityInstance);
+                    }
+                }).catch(err => {
+                    console.error("Unity failed to load:", err);
+                });
+            };
+
+            script.onerror = (err) => {
+                console.error("Failed to load Unity loader:", err);
+            };
+
+            document.body.appendChild(script);
+        });
+
+        // Telegram message handling
         window.addEventListener('message', (ev) => {
             const data = ev.data?.playdeck;
             if (!data || !window.unityInstance) return;
             if (data.method === 'play') {
-                window.unityInstance.SendMessage('LoadingScreenUI', 'OnPlayButton');
+                console.log("Received play command from Telegram");
+                if (window.unityInstance.SendMessage) {
+                    window.unityInstance.SendMessage('LoadingScreenUI', 'OnPlayButton');
+                }
             }
         });
     </script>
