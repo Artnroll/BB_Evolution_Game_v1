@@ -2,9 +2,26 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Your Game | Unity WebGL</title>
+    <title>BitBullz Evolution | Unity WebGL</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
+
+    <!-- CORRECT AdsGram SDK from documentation -->
+    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+
+    <!-- Temporary debug script -->
+    <script>
+        console.log("=== ADSGRAM SDK DEBUG ===");
+        console.log("SDK script loaded:", typeof window.AdsGram !== 'undefined');
+        if (window.AdsGram) {
+            console.log("AdsGram object:", window.AdsGram);
+            console.log("Available methods:", Object.keys(window.AdsGram));
+        } else {
+            console.error("AdsGram SDK failed to load!");
+        }
+        console.log("=== END DEBUG ===");
+    </script>
+
     <style>
         html, body {
             margin: 0;
@@ -23,7 +40,6 @@
             background: black;
         }
 
-        /* Loading indicator */
         #loading {
             position: fixed;
             top: 50%;
@@ -39,9 +55,6 @@
     <canvas id="unity-canvas" tabindex="-1"></canvas>
     <div id="loading">Loading...</div>
 
-    <!-- REAL AdsGram SDK - LOAD FIRST -->
-    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
-
     <!-- PlayDeck Bridge -->
     <script src="playdeckBridge.js"></script>
 
@@ -53,7 +66,12 @@
             const buildUrl = "Build";
             const loaderUrl = buildUrl + "/WebglBuild.loader.js";
 
-            // Hide loading when Unity starts
+            // Check if AdsGram SDK loaded correctly
+            console.log("AdsGram SDK available:", typeof window.AdsGram !== 'undefined');
+            if (window.AdsGram) {
+                console.log("AdsGram methods:", Object.keys(window.AdsGram));
+            }
+
             const hideLoading = () => {
                 if (loadingElement) {
                     loadingElement.style.display = 'none';
@@ -80,7 +98,6 @@
                         if (loadingElement) {
                             loadingElement.innerHTML = `Loading... ${progress}%`;
                         }
-                        // Update bridge loading progress
                         if (window.playDeckBridge?.SetLoading) {
                             window.playDeckBridge.SetLoading(progress);
                         }
@@ -101,24 +118,21 @@
                         loadingElement.innerHTML = `Loading... ${progressPercent}%`;
                     }
 
-                    // Update bridge loading progress
                     if (window.playDeckBridge?.SetLoading) {
                         window.playDeckBridge.SetLoading(progressPercent);
                     }
                 }).then((unityInstance) => {
-                    console.log("✅ Unity loaded successfully");
+                    console.log("Unity loaded successfully");
                     window.unityInstance = unityInstance;
                     hideLoading();
 
                     // Initialize bridge with Unity instance
                     if (window.playDeckBridge?.init) {
                         window.playDeckBridge.init(unityInstance);
-                    } else {
-                        console.error("Bridge init function not available");
                     }
 
                 }).catch(err => {
-                    console.error("❌ Unity failed to load:", err);
+                    console.error("Unity failed to load:", err);
                     if (loadingElement) {
                         loadingElement.innerHTML = "Failed to load game. Please refresh.";
                         loadingElement.style.color = "red";
@@ -127,7 +141,7 @@
             };
 
             script.onerror = (err) => {
-                console.error("❌ Failed to load Unity loader:", err);
+                console.error("Failed to load Unity loader:", err);
                 if (loadingElement) {
                     loadingElement.innerHTML = "Failed to load game. Please refresh.";
                     loadingElement.style.color = "red";
@@ -135,11 +149,6 @@
             };
 
             document.body.appendChild(script);
-        });
-
-        // Global error handler
-        window.addEventListener('error', function (e) {
-            console.error('Global error:', e.error);
         });
     </script>
 </body>
