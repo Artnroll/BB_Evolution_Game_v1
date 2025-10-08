@@ -1,8 +1,8 @@
-﻿// PlayDeck Bridge for Unity WebGL with CORRECT AdsGram SDK
+﻿// PlayDeck Bridge for Unity WebGL with AdsGram - FIXED VERSION
 (function () {
     'use strict';
 
-    console.log(" Initializing PlayDeck Bridge with AdsGram...");
+    console.log("🔧 Initializing PlayDeck Bridge...");
 
     const bridge = {
         unityInstance: null,
@@ -10,62 +10,93 @@
         currentRewardReject: null,
         isAdsGramReady: false,
         isTelegram: false,
+        sdkLoaded: false,
         rewardedAdUnitId: '15876', // Your actual ad unit ID
 
         init: function (unity) {
-            console.log(" Bridge initialized with Unity instance");
+            console.log("🔧 Bridge initialized with Unity instance");
             this.unityInstance = unity;
             this.isTelegram = this.isTelegramEnvironment();
-            console.log(" Is Telegram environment:", this.isTelegram);
+            console.log("🔧 Is Telegram environment:", this.isTelegram);
 
-            // Initialize AdsGram if in Telegram
+            // Check if AdsGram SDK is available
+            this.checkAdsGramSDK();
+        },
+
+        isTelegramEnvironment: function () {
+            const isTG = !!(window.Telegram && window.Telegram.WebApp);
+            if (isTG) {
+                console.log("🔧 Telegram WebApp detected - Version:", window.Telegram.WebApp.version);
+                console.log("🔧 Telegram Platform:", window.Telegram.WebApp.platform);
+            }
+            return isTG;
+        },
+
+        checkAdsGramSDK: function () {
+            console.log("🔧 Checking AdsGram SDK...");
+
+            if (window.AdsGram) {
+                console.log("✅ AdsGram SDK found in window object");
+                console.log("🔧 Available AdsGram methods:", Object.keys(window.AdsGram));
+                this.sdkLoaded = true;
+
+                if (this.isTelegram) {
+                    this.initializeAdsGram();
+                }
+                return;
+            }
+
+            // SDK not found
+            console.warn("⚠️ AdsGram SDK not found in window object");
+
             if (this.isTelegram) {
-                this.initializeAdsGram();
+                console.error("❌ AdsGram SDK not available in Telegram - this is unexpected!");
             } else {
-                console.log(" Not in Telegram - using simulator mode");
+                console.log("🔧 Not in Telegram - using simulator mode");
+                this.sdkLoaded = true; // Enable simulator
                 this.isAdsGramReady = true;
             }
         },
 
-        isTelegramEnvironment: function () {
-            return !!(window.Telegram && window.Telegram.WebApp);
-        },
-
         initializeAdsGram: function () {
-            console.log(" Initializing AdsGram SDK...");
-
-            if (!window.AdsGram) {
-                console.error(" AdsGram SDK not found!");
-                console.log(" Available global objects:", Object.keys(window));
+            if (!this.sdkLoaded) {
+                console.error("❌ Cannot initialize - SDK not loaded");
                 return;
             }
 
-            console.log(" AdsGram SDK found, methods:", Object.keys(window.AdsGram));
+            console.log("🔧 Initializing AdsGram...");
 
-            // CORRECT initialization based on docs
-            window.AdsGram.init()
-                .then(() => {
-                    console.log(" AdsGram initialized successfully");
-                    this.isAdsGramReady = true;
+            try {
+                if (typeof window.AdsGram.init !== 'function') {
+                    console.error("❌ AdsGram.init is not a function");
+                    return;
+                }
 
-                    // Preload rewarded ads
-                    this.preloadRewardedAds();
-                })
-                .catch((error) => {
-                    console.error(" AdsGram initialization failed:", error);
-                    this.isAdsGramReady = false;
-                });
+                window.AdsGram.init()
+                    .then(() => {
+                        console.log("✅ AdsGram initialized successfully");
+                        this.isAdsGramReady = true;
+                        this.preloadRewardedAds();
+                    })
+                    .catch((error) => {
+                        console.error("❌ AdsGram initialization failed:", error);
+                        this.isAdsGramReady = false;
+                    });
+            } catch (error) {
+                console.error("❌ Exception during AdsGram initialization:", error);
+                this.isAdsGramReady = false;
+            }
         },
 
         preloadRewardedAds: function () {
             if (this.isAdsGramReady && window.AdsGram.preload) {
-                console.log(" Preloading rewarded ads...");
+                console.log("🔧 Preloading rewarded ads...");
                 window.AdsGram.preload([this.rewardedAdUnitId])
                     .then(() => {
-                        console.log(" Rewarded ads preloaded successfully");
+                        console.log("✅ Rewarded ads preloaded successfully");
                     })
                     .catch((error) => {
-                        console.warn(" Rewarded ads preload failed:", error);
+                        console.warn("⚠️ Rewarded ads preload failed:", error);
                     });
             }
         },
@@ -73,12 +104,11 @@
         ShowRewardedAd: function () {
             console.log("🔧 ShowRewardedAd called");
 
-            // Store reference to 'this' to avoid scope issues
             const self = this;
 
             return new Promise((resolve, reject) => {
-                // Browser simulator for testing
-                if (!self.isTelegram) {
+                // If not in Telegram or SDK not loaded, use simulator
+                if (!self.isTelegram || !self.sdkLoaded) {
                     console.log("🔄 SIMULATOR: Showing fake rewarded ad");
                     setTimeout(() => {
                         const simulateSuccess = true; // Change to false to test failure
@@ -95,21 +125,27 @@
                     return;
                 }
 
-                // Real AdsGram implementation
+                // Real AdsGram implementation for Telegram
                 if (!self.isAdsGramReady) {
-                    console.error("❌ AdsGram not ready");
+                    console.error("❌ AdsGram not ready - SDK loaded but not initialized");
                     self.notifyUnityAdCompleted(false);
                     reject(false);
                     return;
                 }
 
-                console.log("🔧 Showing real rewarded ad with unit ID:", self.rewardedAdUnitId);
+                console.log("🔧 Showing REAL rewarded ad with unit ID:", self.rewardedAdUnitId);
 
                 self.currentRewardResolve = resolve;
                 self.currentRewardReject = reject;
 
                 try {
-                    // CORRECT method call based on AdsGram docs
+                    if (typeof window.AdsGram.showRewarded !== 'function') {
+                        console.error("❌ AdsGram.showRewarded is not a function");
+                        self.notifyUnityAdCompleted(false);
+                        reject(false);
+                        return;
+                    }
+
                     window.AdsGram.showRewarded(self.rewardedAdUnitId, {
                         onReward: (reward) => {
                             console.log("✅ Rewarded ad completed successfully, reward:", reward);
@@ -129,6 +165,11 @@
                             self.notifyUnityAdCompleted(false);
                             reject(false);
                         }
+                    }).catch((error) => {
+                        console.error("🔥 AdsGram.showRewarded promise rejected:", error);
+                        self.clearRewardCallbacks();
+                        self.notifyUnityAdCompleted(false);
+                        reject(false);
                     });
                 } catch (error) {
                     console.error("🔥 Exception in showRewarded:", error);
@@ -149,18 +190,74 @@
             if (this.unityInstance && this.unityInstance.SendMessage) {
                 const message = success ? "true" : "false";
                 this.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', message);
+            } else {
+                console.warn("⚠️ Cannot notify Unity - instance not available");
             }
         },
 
         AreAdsAvailable: function () {
-            const available = this.isTelegram ? this.isAdsGramReady : true;
-            console.log("🔧 AreAdsAvailable:", available);
+            // In Telegram: only available if SDK is loaded AND initialized
+            // Outside Telegram: always available (simulator)
+            const available = this.isTelegram ? (this.sdkLoaded && this.isAdsGramReady) : true;
+            console.log("🔧 AreAdsAvailable:", available,
+                "(Telegram:", this.isTelegram,
+                "SDK Loaded:", this.sdkLoaded,
+                "Initialized:", this.isAdsGramReady, ")");
             return available;
         },
 
         PreloadAds: function () {
-            if (this.isTelegram && this.isAdsGramReady) {
+            console.log("🔧 PreloadAds called");
+            if (this.isTelegram && this.sdkLoaded && this.isAdsGramReady) {
                 this.preloadRewardedAds();
+            }
+        },
+
+        SetLoading: function (progress) {
+            console.log("SetLoading:", progress);
+            try {
+                if (window.parent && window.parent.postMessage) {
+                    window.parent.postMessage({
+                        playdeck: {
+                            method: 'loading',
+                            value: progress
+                        }
+                    }, '*');
+                }
+            } catch (e) {
+                console.warn("SetLoading failed:", e);
+            }
+        },
+
+        GameEnd: function () {
+            console.log("GameEnd called");
+            try {
+                if (window.parent && window.parent.postMessage) {
+                    window.parent.postMessage({
+                        playdeck: {
+                            method: 'gameEnd'
+                        }
+                    }, '*');
+                }
+            } catch (e) {
+                console.warn("GameEnd failed:", e);
+            }
+        },
+
+        Analytics: function (eventName, payload) {
+            console.log("Analytics:", eventName, payload);
+            try {
+                if (window.parent && window.parent.postMessage) {
+                    window.parent.postMessage({
+                        playdeck: {
+                            method: 'analytics',
+                            event: eventName,
+                            data: payload
+                        }
+                    }, '*');
+                }
+            } catch (e) {
+                console.warn("Analytics failed:", e);
             }
         }
     };
@@ -174,6 +271,17 @@
     window.PlayDeck_AreAdsAvailable = bridge.AreAdsAvailable;
     window.PlayDeck_PreloadAds = bridge.PreloadAds;
 
-    console.log("PlayDeck Bridge ready");
+    console.log("🔧 PlayDeck Bridge ready");
+
+    // Check if AdsGram loaded after a delay (in case it loads slowly)
+    setTimeout(() => {
+        if (!bridge.sdkLoaded && window.AdsGram) {
+            console.log("✅ AdsGram SDK loaded after delay");
+            bridge.sdkLoaded = true;
+            if (bridge.isTelegram) {
+                bridge.initializeAdsGram();
+            }
+        }
+    }, 2000);
 
 })();

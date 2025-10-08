@@ -9,19 +9,6 @@
     <!-- CORRECT AdsGram SDK from documentation -->
     <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
-    <!-- Temporary debug script -->
-    <script>
-        console.log("=== ADSGRAM SDK DEBUG ===");
-        console.log("SDK script loaded:", typeof window.AdsGram !== 'undefined');
-        if (window.AdsGram) {
-            console.log("AdsGram object:", window.AdsGram);
-            console.log("Available methods:", Object.keys(window.AdsGram));
-        } else {
-            console.error("AdsGram SDK failed to load!");
-        }
-        console.log("=== END DEBUG ===");
-    </script>
-
     <style>
         html, body {
             margin: 0;
@@ -48,6 +35,7 @@
             color: white;
             font-family: Arial, sans-serif;
             text-align: center;
+            z-index: 1000;
         }
     </style>
 </head>
@@ -59,18 +47,24 @@
     <script src="playdeckBridge.js"></script>
 
     <script>
+        // Debug AdsGram SDK loading
+        console.log("=== ADSGRAM SDK DEBUG ===");
+        console.log("SDK script loaded:", typeof window.AdsGram !== 'undefined');
+        if (window.AdsGram) {
+            console.log("✅ AdsGram SDK found!");
+            console.log("AdsGram methods:", Object.keys(window.AdsGram));
+        } else {
+            console.error("❌ AdsGram SDK not found in window!");
+        }
+        console.log("Telegram WebApp available:", !!(window.Telegram && window.Telegram.WebApp));
+        console.log("=== END DEBUG ===");
+
         // Wait for DOM to load
         window.addEventListener('DOMContentLoaded', function () {
             const canvas = document.querySelector("#unity-canvas");
             const loadingElement = document.querySelector("#loading");
             const buildUrl = "Build";
             const loaderUrl = buildUrl + "/WebglBuild.loader.js";
-
-            // Check if AdsGram SDK loaded correctly
-            console.log("AdsGram SDK available:", typeof window.AdsGram !== 'undefined');
-            if (window.AdsGram) {
-                console.log("AdsGram methods:", Object.keys(window.AdsGram));
-            }
 
             const hideLoading = () => {
                 if (loadingElement) {
@@ -87,9 +81,9 @@
                 frameworkUrl: buildUrl + "/WebglBuild.framework.js",
                 codeUrl: buildUrl + "/WebglBuild.wasm",
                 streamingAssetsUrl: "StreamingAssets",
-                companyName: "Your Company",
-                productName: "Your Game",
-                productVersion: "1.0",
+                companyName: "Artnroll Games",
+                productName: "BitBullz Evolution",
+                productVersion: "0.4",
                 devicePixelRatio: pixelRatioCap,
                 showBanner: (msg, type) => {
                     console.log(type, msg);
@@ -122,17 +116,19 @@
                         window.playDeckBridge.SetLoading(progressPercent);
                     }
                 }).then((unityInstance) => {
-                    console.log("Unity loaded successfully");
+                    console.log("✅ Unity loaded successfully");
                     window.unityInstance = unityInstance;
                     hideLoading();
 
                     // Initialize bridge with Unity instance
                     if (window.playDeckBridge?.init) {
                         window.playDeckBridge.init(unityInstance);
+                    } else {
+                        console.error("❌ Bridge init function not available");
                     }
 
                 }).catch(err => {
-                    console.error("Unity failed to load:", err);
+                    console.error("❌ Unity failed to load:", err);
                     if (loadingElement) {
                         loadingElement.innerHTML = "Failed to load game. Please refresh.";
                         loadingElement.style.color = "red";
@@ -141,7 +137,7 @@
             };
 
             script.onerror = (err) => {
-                console.error("Failed to load Unity loader:", err);
+                console.error("❌ Failed to load Unity loader:", err);
                 if (loadingElement) {
                     loadingElement.innerHTML = "Failed to load game. Please refresh.";
                     loadingElement.style.color = "red";
@@ -149,6 +145,11 @@
             };
 
             document.body.appendChild(script);
+        });
+
+        // Global error handler
+        window.addEventListener('error', function (e) {
+            console.error('Global error:', e.error);
         });
     </script>
 </body>
