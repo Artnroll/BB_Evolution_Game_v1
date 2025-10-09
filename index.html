@@ -55,6 +55,42 @@
     <!-- PlayDeck Bridge -->
     <script src="playdeckBridge.js"></script>
 
+    <!-- AdsGram Debug Script -->
+    <script>
+        console.log("🔧 AdsGram Debug Analysis...");
+
+        // Check if AdsGram loaded
+        if (window.AdsGram) {
+            console.log("✅ AdsGram SDK loaded successfully!");
+            console.log("Available methods:", Object.keys(window.AdsGram));
+
+            // Test initialization
+            window.AdsGram.init().then(() => {
+                console.log("✅ AdsGram initialized successfully");
+            }).catch(error => {
+                console.error("❌ AdsGram initialization failed:", error);
+            });
+        } else {
+            console.error("❌ AdsGram SDK not loaded!");
+
+            // Check network requests
+            const scripts = document.getElementsByTagName('script');
+            for (let script of scripts) {
+                if (script.src.includes('adsgram')) {
+                    console.log("📦 AdsGram script tag found:", script.src);
+                    console.log("🔍 Script loading state:", script.readyState);
+                    console.log("🔍 Script complete:", script.complete);
+                }
+            }
+
+            console.log("🤔 Possible reasons:");
+            console.log("   - Domain not whitelisted by AdsGram");
+            console.log("   - Network blocking the CDN");
+            console.log("   - Ad blockers interfering");
+            console.log("   - Invalid ad unit ID");
+        }
+    </script>
+
     <script>
         // Wait for DOM to load
         window.addEventListener('DOMContentLoaded', function () {
