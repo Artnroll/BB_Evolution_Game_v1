@@ -149,7 +149,7 @@
             updateDebugStatus("🎯 Attempting REAL AdsGram ad...");
 
             try {
-                window.AdsGram.showRewarded('15957', {
+                window.AdsGram.showRewarded('15960', {
                     onReward: (reward) => {
                         updateDebugStatus("✅ REAL AD: Completed with reward");
                         notifyUnityAdCompleted(true);
