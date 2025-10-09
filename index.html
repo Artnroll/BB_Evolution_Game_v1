@@ -6,8 +6,11 @@
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
 
-    <!-- Telegram WebApp -->
+    <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <!-- AdsGram SDK -->
+    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
     <style>
         html, body {
@@ -35,23 +38,20 @@
             color: white;
             font-family: Arial, sans-serif;
             text-align: center;
-            z-index: 100000;
+            z-index: 1000;
         }
 
-        /* SIMPLE NAME DISPLAY */
-        #name-display {
+        #debug-info {
             position: fixed;
             top: 10px;
             left: 10px;
-            background: rgba(0,0,0,0.9);
-            color: #00ff00;
-            padding: 15px;
-            border: 3px solid #00ff00;
-            border-radius: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
             font-family: Arial, sans-serif;
-            font-size: 16px;
-            font-weight: bold;
-            z-index: 99999;
+            font-size: 12px;
+            z-index: 1000;
             max-width: 300px;
         }
     </style>
@@ -59,66 +59,38 @@
 <body>
     <canvas id="unity-canvas" tabindex="-1"></canvas>
     <div id="loading">Loading...</div>
-
-    <!-- SIMPLE NAME DISPLAY -->
-    <div id="name-display">
-        <div>🔍 TELEGRAM NAME:</div>
-        <div id="telegram-name">Checking...</div>
+    <div id="debug-info" style="display: none;">
+        <div id="telegram-status">Checking Telegram...</div>
+        <div id="username-status">Username: Unknown</div>
     </div>
-
-    <script>
-        // SIMPLE TELEGRAM NAME CHECK
-        const nameDisplay = document.getElementById('telegram-name');
-
-        function showName(name) {
-            nameDisplay.textContent = name;
-            nameDisplay.style.color = '#00ff00';
-            console.log("📛 TELEGRAM NAME FOUND:", name);
-        }
-
-        function showError(error) {
-            nameDisplay.textContent = error;
-            nameDisplay.style.color = 'red';
-            console.error("❌ TELEGRAM ERROR:", error);
-        }
-
-        // Check Telegram immediately
-        if (window.Telegram && window.Telegram.WebApp) {
-            console.log("✅ Telegram WebApp detected");
-
-            const user = window.Telegram.WebApp.initDataUnsafe?.user;
-            console.log("USER OBJECT:", user);
-
-            if (user) {
-                // Try different name fields
-                const name = user.username || user.first_name || user.last_name || `User_${user.id}`;
-
-                if (name) {
-                    showName(name);
-
-                    // Send to Unity when it loads
-                    setTimeout(() => {
-                        if (window.unityInstance) {
-                            console.log("🚀 Sending name to Unity:", name);
-                            window.unityInstance.SendMessage('LoginManager', 'OnUsernameReceived', name);
-                        }
-                    }, 3000);
-                } else {
-                    showError("No name fields found in user object");
-                }
-            } else {
-                showError("No user data in Telegram");
-                console.log("initDataUnsafe:", window.Telegram.WebApp.initDataUnsafe);
-            }
-        } else {
-            showError("Not in Telegram Mini App");
-        }
-    </script>
 
     <!-- PlayDeck Bridge -->
     <script src="playdeckBridge.js"></script>
 
     <script>
+        // Debug info
+        function updateDebugInfo() {
+            const debugInfo = document.getElementById('debug-info');
+            const telegramStatus = document.getElementById('telegram-status');
+            const usernameStatus = document.getElementById('username-status');
+
+            const isTelegram = !!(window.Telegram && window.Telegram.WebApp);
+            telegramStatus.textContent = `Telegram: ${isTelegram ? 'Yes' : 'No'}`;
+
+            if (isTelegram) {
+                const user = window.Telegram.WebApp.initDataUnsafe?.user;
+                if (user) {
+                    usernameStatus.textContent = `User: ${user.username ? '@' + user.username : user.first_name || 'Unknown'}`;
+                } else {
+                    usernameStatus.textContent = 'User: Not available';
+                }
+            } else {
+                usernameStatus.textContent = 'User: Not in Telegram';
+            }
+
+            debugInfo.style.display = 'block';
+        }
+
         // Wait for DOM to load
         window.addEventListener('DOMContentLoaded', function () {
             const canvas = document.querySelector("#unity-canvas");
@@ -126,46 +98,91 @@
             const buildUrl = "Build";
             const loaderUrl = buildUrl + "/WebglBuild.loader.js";
 
+            console.log("Initializing WebGL build...");
+            console.log("Telegram WebApp available:", !!(window.Telegram && window.Telegram.WebApp));
+
+            if (window.Telegram && window.Telegram.WebApp) {
+                console.log("Telegram WebApp initData:", window.Telegram.WebApp.initDataUnsafe);
+                console.log("Telegram user:", window.Telegram.WebApp.initDataUnsafe?.user);
+            }
+
             const hideLoading = () => {
                 if (loadingElement) {
                     loadingElement.style.display = 'none';
                 }
             };
 
+            const pixelRatioCap = /Mobi|Android|iPhone|iPad|iPod/.test(navigator.userAgent)
+                ? Math.min(window.devicePixelRatio, 1.5)
+                : window.devicePixelRatio;
+
             const config = {
                 dataUrl: buildUrl + "/WebglBuild.data",
                 frameworkUrl: buildUrl + "/WebglBuild.framework.js",
                 codeUrl: buildUrl + "/WebglBuild.wasm",
                 streamingAssetsUrl: "StreamingAssets",
-                companyName: "Artnroll Games",
-                productName: "BitBullz Evolution",
-                productVersion: "0.4",
-                devicePixelRatio: window.devicePixelRatio,
+                companyName: "Your Company",
+                productName: "Your Game",
+                productVersion: "1.0",
+                devicePixelRatio: pixelRatioCap,
                 showBanner: (msg, type) => {
+                    console.log(type, msg);
                     if (type === 'progress') {
                         const progress = Math.round(msg * 100);
                         if (loadingElement) {
                             loadingElement.innerHTML = `Loading... ${progress}%`;
                         }
+                        if (window.playDeckBridge?.SetLoading) {
+                            window.playDeckBridge.SetLoading(progress);
+                        }
                     }
                 }
             };
+
+            console.log("Starting Unity WebGL build...");
 
             const script = document.createElement("script");
             script.src = loaderUrl;
             script.onload = () => {
                 createUnityInstance(canvas, config, (progress) => {
                     const progressPercent = Math.round(progress * 100);
+                    console.log("Loading progress:", progressPercent + "%");
+
                     if (loadingElement) {
                         loadingElement.innerHTML = `Loading... ${progressPercent}%`;
+                    }
+
+                    if (window.playDeckBridge?.SetLoading) {
+                        window.playDeckBridge.SetLoading(progressPercent);
                     }
                 }).then((unityInstance) => {
                     console.log("✅ Unity loaded successfully");
                     window.unityInstance = unityInstance;
                     hideLoading();
+
+                    // Show debug info
+                    updateDebugInfo();
+
+                    // Initialize bridge with Unity instance
+                    if (window.playDeckBridge?.init) {
+                        window.playDeckBridge.init(unityInstance);
+                    }
+
                 }).catch(err => {
                     console.error("❌ Unity failed to load:", err);
+                    if (loadingElement) {
+                        loadingElement.innerHTML = "Failed to load game. Please refresh.";
+                        loadingElement.style.color = "red";
+                    }
                 });
+            };
+
+            script.onerror = (err) => {
+                console.error("❌ Failed to load Unity loader:", err);
+                if (loadingElement) {
+                    loadingElement.innerHTML = "Failed to load game. Please refresh.";
+                    loadingElement.style.color = "red";
+                }
             };
 
             document.body.appendChild(script);
