@@ -6,7 +6,10 @@
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
 
-    <!-- CORRECT AdsGram SDK from documentation -->
+    <!-- Telegram WebApp -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <!-- AdsGram SDK -->
     <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
     <style>
@@ -35,6 +38,7 @@
             color: white;
             font-family: Arial, sans-serif;
             text-align: center;
+            z-index: 100000;
         }
     </style>
 </head>
@@ -42,68 +46,154 @@
     <canvas id="unity-canvas" tabindex="-1"></canvas>
     <div id="loading">Loading...</div>
 
-    <!-- Manual Telegram WebApp injection -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script>
-        console.log("🔧 Manually loading Telegram WebApp...");
-        setTimeout(() => {
-            console.log("Telegram object:", window.Telegram);
-            console.log("WebApp object:", window.Telegram?.WebApp);
-        }, 1000);
-    </script>
+    <!-- HARDCODE MOBILE DEBUG PANEL -->
+    <div id="fucking-debug" style="
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        background: #000;
+        color: #fff;
+        padding: 15px;
+        border: 3px solid red;
+        border-radius: 10px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        z-index: 99999;
+        max-height: 300px;
+        overflow-y: auto;
+    ">
+        <div style="color: red; font-weight: bold; font-size: 16px; margin-bottom: 10px;">
+            🔥 ADSGRAM DEBUG - READ THIS SHIT 🔥
+        </div>
+        <div id="debug-shit" style="line-height: 1.4;">
+            Loading debug info...
+        </div>
+        <button onclick="document.getElementById('fucking-debug').style.display='none'"
+                style="margin-top: 10px; padding: 5px 10px; background: red; color: white; border: none; border-radius: 5px;">
+            Close This Shit
+        </button>
+    </div>
 
     <!-- PlayDeck Bridge -->
     <script src="playdeckBridge.js"></script>
 
-    <!-- AdsGram Debug Script -->
     <script>
-        console.log("🔧 AdsGram Debug Analysis...");
+        // Function to update the fucking debug panel
+        function updateDebugShit(message, isError = false) {
+            const debugShit = document.getElementById('debug-shit');
+            if (debugShit) {
+                const color = isError ? 'red' : 'white';
+                debugShit.innerHTML += `<div style="color: ${color}; margin: 5px 0;">${new Date().toLocaleTimeString()}: ${message}</div>`;
+                debugShit.scrollTop = debugShit.scrollHeight;
+            }
+            console.log(message);
+        }
 
-        // Check if AdsGram loaded
-        if (window.AdsGram) {
-            console.log("✅ AdsGram SDK loaded successfully!");
-            console.log("Available methods:", Object.keys(window.AdsGram));
+        // Function to scream errors in console
+        function screamError(message) {
+            console.error(`🔴🔴🔴 ADSGRAM FAILURE: ${message} 🔴🔴🔴`);
+            console.error(`📍 DOMAIN: artnroll.github.io`);
+            console.error(`📍 AD UNIT: 15876`);
+            console.error(`📍 TELEGRAM: ${!!window.Telegram?.WebApp}`);
+        }
 
-            // Test initialization
-            window.AdsGram.init().then(() => {
-                console.log("✅ AdsGram initialized successfully");
-            }).catch(error => {
-                console.error("❌ AdsGram initialization failed:", error);
-            });
+        // Start nuclear debugging
+        updateDebugShit("🚀 STARTING NUCLEAR ADSGRAM DEBUG...");
+        console.log("=== 🔥 NUCLEAR ADSGRAM DEBUG STARTED 🔥 ===");
+
+        // Check environment immediately
+        updateDebugShit(`📍 Telegram WebApp: ${!!window.Telegram?.WebApp}`);
+        updateDebugShit(`📍 AdsGram SDK: ${!!window.AdsGram}`);
+
+        // Check if AdsGram script tag exists
+        const adsGramScript = Array.from(document.scripts).find(s => s.src.includes('adsgram'));
+        if (!adsGramScript) {
+            screamError("SCRIPT TAG NOT FOUND - AdsGram script never loaded from CDN");
+            updateDebugShit("🔴 ADSGRAM SCRIPT TAG NOT FOUND IN PAGE", true);
+            updateDebugShit("🔴 CDN FAILED TO LOAD - NETWORK ISSUE", true);
         } else {
-            console.error("❌ AdsGram SDK not loaded!");
+            updateDebugShit("✅ AdsGram script tag found in HTML");
+            updateDebugShit(`📦 Script URL: ${adsGramScript.src}`);
 
-            // Check network requests
-            const scripts = document.getElementsByTagName('script');
-            for (let script of scripts) {
-                if (script.src.includes('adsgram')) {
-                    console.log("📦 AdsGram script tag found:", script.src);
-                    console.log("🔍 Script loading state:", script.readyState);
-                    console.log("🔍 Script complete:", script.complete);
+            // Add error handling to script tag
+            adsGramScript.onerror = function (e) {
+                screamError("SCRIPT LOAD ERROR - Network failure or CDN down");
+                updateDebugShit("🔴 NETWORK FAILED TO LOAD ADSGRAM SDK", true);
+                updateDebugShit("🔴 Check if CDN is blocked in your region", true);
+            };
+
+            adsGramScript.onload = function () {
+                updateDebugShit("✅ Script onload fired - CDN loaded successfully");
+                adsGramScript.setAttribute('data-loaded', 'true');
+            };
+        }
+
+        // Wait and check if AdsGram loads
+        setTimeout(() => {
+            updateDebugShit("=== 🕒 CHECKING ADSGRAM LOAD STATUS ===");
+
+            if (!window.AdsGram) {
+                screamError("WINDOW.ADSGRAM IS UNDEFINED - DOMAIN BLOCKED BY ADSGRAM");
+                updateDebugShit("🔴 CRITICAL: AdsGram SDK NOT LOADED", true);
+                updateDebugShit("🔴 REASON: Domain artnroll.github.io not whitelisted", true);
+                updateDebugShit("🔴 AdsGram is BLOCKING your domain", true);
+                updateDebugShit("🔴 SOLUTION: Contact AdsGram support to whitelist domain", true);
+
+                // Try to detect network issues
+                fetch('https://sad.adsgram.ai/js/sad.min.js', { mode: 'no-cors' })
+                    .then(() => {
+                        updateDebugShit("🌐 CDN is accessible - Domain definitely blocked", true);
+                    })
+                    .catch(err => {
+                        updateDebugShit(`🌐 CDN network error: ${err}`, true);
+                    });
+            } else {
+                updateDebugShit("✅🎉 ADSGRAM SDK LOADED SUCCESSFULLY!");
+                updateDebugShit(`📦 Available methods: ${Object.keys(window.AdsGram).join(', ')}`);
+
+                // Test initialization
+                if (window.AdsGram.init) {
+                    updateDebugShit("🔄 Testing AdsGram initialization...");
+                    window.AdsGram.init()
+                        .then(() => {
+                            updateDebugShit("✅🎉 ADSGRAM INITIALIZED SUCCESSFULLY!");
+                            updateDebugShit("🚀 REAL ADS SHOULD WORK NOW!");
+                        })
+                        .catch(initError => {
+                            screamError(`INIT FAILED: ${initError}`);
+                            updateDebugShit(`🔴 INIT FAILED: ${initError}`, true);
+                            updateDebugShit("🔴 Check AdsGram dashboard configuration", true);
+                        });
+                } else {
+                    updateDebugShit("🔴 AdsGram.init method not available", true);
                 }
             }
+        }, 3000);
 
-            console.log("🤔 Possible reasons:");
-            console.log("   - Domain not whitelisted by AdsGram");
-            console.log("   - Network blocking the CDN");
-            console.log("   - Ad blockers interfering");
-            console.log("   - Invalid ad unit ID");
-        }
-    </script>
+        // Continuous monitoring
+        let checkCount = 0;
+        const adsGramCheck = setInterval(() => {
+            checkCount++;
+            if (window.AdsGram) {
+                updateDebugShit(`✅ AdsGram loaded after ${checkCount} seconds`);
+                clearInterval(adsGramCheck);
+            } else if (checkCount >= 10) {
+                updateDebugShit(`🔴 AdsGram still not loaded after ${checkCount} seconds`, true);
+                updateDebugShit("🔴 DEFINITIVE: Domain blocking issue", true);
+                updateDebugShit("🔴 CONTACT ADSGRAM SUPPORT: domain artnroll.github.io", true);
+                clearInterval(adsGramCheck);
+            } else {
+                updateDebugShit(`⏳ Waiting for AdsGram... ${checkCount}s`);
+            }
+        }, 1000);
 
-    <script>
-        // Wait for DOM to load
+        // Your existing Unity loading code
         window.addEventListener('DOMContentLoaded', function () {
             const canvas = document.querySelector("#unity-canvas");
             const loadingElement = document.querySelector("#loading");
             const buildUrl = "Build";
             const loaderUrl = buildUrl + "/WebglBuild.loader.js";
-
-            // Check if AdsGram SDK loaded correctly
-            console.log("AdsGram SDK available:", typeof window.AdsGram !== 'undefined');
-            if (window.AdsGram) {
-                console.log("AdsGram methods:", Object.keys(window.AdsGram));
-            }
 
             const hideLoading = () => {
                 if (loadingElement) {
@@ -120,9 +210,9 @@
                 frameworkUrl: buildUrl + "/WebglBuild.framework.js",
                 codeUrl: buildUrl + "/WebglBuild.wasm",
                 streamingAssetsUrl: "StreamingAssets",
-                companyName: "Your Company",
-                productName: "Your Game",
-                productVersion: "1.0",
+                companyName: "Artnroll Games",
+                productName: "BitBullz Evolution",
+                productVersion: "0.4",
                 devicePixelRatio: pixelRatioCap,
                 showBanner: (msg, type) => {
                     console.log(type, msg);
@@ -138,14 +228,14 @@
                 }
             };
 
-            console.log("Starting Unity WebGL build...");
+            updateDebugShit("Starting Unity WebGL build...");
 
             const script = document.createElement("script");
             script.src = loaderUrl;
             script.onload = () => {
                 createUnityInstance(canvas, config, (progress) => {
                     const progressPercent = Math.round(progress * 100);
-                    console.log("Loading progress:", progressPercent + "%");
+                    updateDebugShit(`Unity loading: ${progressPercent}%`);
 
                     if (loadingElement) {
                         loadingElement.innerHTML = `Loading... ${progressPercent}%`;
@@ -155,7 +245,7 @@
                         window.playDeckBridge.SetLoading(progressPercent);
                     }
                 }).then((unityInstance) => {
-                    console.log("✅ Unity loaded successfully");
+                    updateDebugShit("✅ Unity loaded successfully");
                     window.unityInstance = unityInstance;
                     hideLoading();
 
@@ -165,7 +255,7 @@
                     }
 
                 }).catch(err => {
-                    console.error("❌ Unity failed to load:", err);
+                    updateDebugShit(`❌ Unity failed to load: ${err}`, true);
                     if (loadingElement) {
                         loadingElement.innerHTML = "Failed to load game. Please refresh.";
                         loadingElement.style.color = "red";
@@ -174,7 +264,7 @@
             };
 
             script.onerror = (err) => {
-                console.error("❌ Failed to load Unity loader:", err);
+                updateDebugShit(`❌ Failed to load Unity loader: ${err}`, true);
                 if (loadingElement) {
                     loadingElement.innerHTML = "Failed to load game. Please refresh.";
                     loadingElement.style.color = "red";
@@ -183,6 +273,9 @@
 
             document.body.appendChild(script);
         });
+
+        updateDebugShit("🔧 Debug system ready - waiting for AdsGram...");
+        console.log("=== 🏁 NUCLEAR DEBUG SYSTEM READY ===");
     </script>
 </body>
 </html>
