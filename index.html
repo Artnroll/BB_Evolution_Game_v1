@@ -9,9 +9,6 @@
     <!-- Telegram WebApp -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-    <!-- AdsGram SDK -->
-    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
-
     <style>
         html, body {
             margin: 0;
@@ -40,136 +37,82 @@
             text-align: center;
             z-index: 100000;
         }
+
+        /* SIMPLE NAME DISPLAY */
+        #name-display {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.9);
+            color: #00ff00;
+            padding: 15px;
+            border: 3px solid #00ff00;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 99999;
+            max-width: 300px;
+        }
     </style>
 </head>
 <body>
     <canvas id="unity-canvas" tabindex="-1"></canvas>
     <div id="loading">Loading...</div>
 
-    <!-- VISUAL MOBILE DEBUG PANEL -->
-    <div id="mobile-debug" style="
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        right: 10px;
-        background: rgba(0,0,0,0.95);
-        color: white;
-        padding: 15px;
-        border: 3px solid #00ff00;
-        border-radius: 10px;
-        font-family: Arial, sans-serif;
-        font-size: 12px;
-        z-index: 99998;
-        max-height: 200px;
-        overflow-y: auto;
-    ">
-        <div style="color: #00ff00; font-weight: bold; margin-bottom: 10px;">
-            🔍 MOBILE DEBUG - TELEGRAM LOGIN
-        </div>
-        <div id="debug-content">
-            Initializing...
-        </div>
-        <button onclick="toggleDebug()" style="margin-top: 10px; padding: 5px 10px; background: #333; color: white; border: none; border-radius: 5px;">
-            Hide Debug
-        </button>
+    <!-- SIMPLE NAME DISPLAY -->
+    <div id="name-display">
+        <div>🔍 TELEGRAM NAME:</div>
+        <div id="telegram-name">Checking...</div>
     </div>
 
-    <!-- Telegram Login Bridge -->
     <script>
-        // Mobile Debug Functions
-        let debugLogs = [];
-        const debugPanel = document.getElementById('mobile-debug');
-        const debugContent = document.getElementById('debug-content');
+        // SIMPLE TELEGRAM NAME CHECK
+        const nameDisplay = document.getElementById('telegram-name');
 
-        function addDebugLog(message) {
-            const timestamp = new Date().toLocaleTimeString();
-            debugLogs.push(`[${timestamp}] ${message}`);
-
-            // Keep only last 20 logs
-            if (debugLogs.length > 20) {
-                debugLogs.shift();
-            }
-
-            // Update debug panel
-            debugContent.innerHTML = debugLogs.join('<br>');
-            debugContent.scrollTop = debugContent.scrollHeight;
-
-            // Also log to console
-            console.log(`[DEBUG] ${message}`);
+        function showName(name) {
+            nameDisplay.textContent = name;
+            nameDisplay.style.color = '#00ff00';
+            console.log("📛 TELEGRAM NAME FOUND:", name);
         }
 
-        function toggleDebug() {
-            if (debugPanel.style.display === 'none') {
-                debugPanel.style.display = 'block';
-            } else {
-                debugPanel.style.display = 'none';
-            }
+        function showError(error) {
+            nameDisplay.textContent = error;
+            nameDisplay.style.color = 'red';
+            console.error("❌ TELEGRAM ERROR:", error);
         }
 
-        // Telegram Username Bridge
-        function getTelegramUsername(gameObjectName, callbackMethod) {
-            addDebugLog(`📞 JavaScript called from Unity`);
-
-            try {
-                if (window.Telegram && window.Telegram.WebApp) {
-                    addDebugLog("✅ Telegram WebApp detected in JS call");
-
-                    const user = window.Telegram.WebApp.initDataUnsafe?.user;
-                    addDebugLog("Telegram user object:", user);
-
-                    if (user) {
-                        let username = user.username || user.first_name || `Player_${user.id}`;
-                        addDebugLog(`✅ Found Telegram username: ${username}`);
-
-                        if (window.unityInstance) {
-                            window.unityInstance.SendMessage(gameObjectName, callbackMethod, username);
-                            addDebugLog(`🚀 Sent to Unity: ${username}`);
-                        }
-                        return;
-                    }
-                }
-
-                addDebugLog("❌ No Telegram username found in JS call");
-                if (window.unityInstance) {
-                    window.unityInstance.SendMessage(gameObjectName, callbackMethod, "TelegramUser");
-                }
-
-            } catch (error) {
-                addDebugLog(`❌ Error in JS call: ${error}`);
-            }
-        }
-
-        // Initialize when Telegram is ready
+        // Check Telegram immediately
         if (window.Telegram && window.Telegram.WebApp) {
-            addDebugLog("🤖 Telegram WebApp initialized");
-            window.Telegram.WebApp.ready();
+            console.log("✅ Telegram WebApp detected");
 
             const user = window.Telegram.WebApp.initDataUnsafe?.user;
-            if (user) {
-                addDebugLog('✅ Telegram user data found:');
-                addDebugLog(`- ID: ${user.id}`);
-                addDebugLog(`- Username: ${user.username || 'Not set'}`);
-                addDebugLog(`- First Name: ${user.first_name || 'Not set'}`);
+            console.log("USER OBJECT:", user);
 
-                // Auto-send to Unity after a delay
-                setTimeout(() => {
-                    const username = user.username || user.first_name || `Player_${user.id}`;
-                    addDebugLog(`🚀 Auto-sending to Unity: ${username}`);
-                    if (window.unityInstance) {
-                        window.unityInstance.SendMessage('LoginManager', 'OnUsernameReceived', username);
-                    }
-                }, 2000);
+            if (user) {
+                // Try different name fields
+                const name = user.username || user.first_name || user.last_name || `User_${user.id}`;
+
+                if (name) {
+                    showName(name);
+
+                    // Send to Unity when it loads
+                    setTimeout(() => {
+                        if (window.unityInstance) {
+                            console.log("🚀 Sending name to Unity:", name);
+                            window.unityInstance.SendMessage('LoginManager', 'OnUsernameReceived', name);
+                        }
+                    }, 3000);
+                } else {
+                    showError("No name fields found in user object");
+                }
             } else {
-                addDebugLog('❌ No Telegram user data in initDataUnsafe');
-                addDebugLog('Full initDataUnsafe:', window.Telegram.WebApp.initDataUnsafe);
+                showError("No user data in Telegram");
+                console.log("initDataUnsafe:", window.Telegram.WebApp.initDataUnsafe);
             }
         } else {
-            addDebugLog('❌ Telegram WebApp not detected');
-            addDebugLog('Make sure you are in Telegram Mini App');
+            showError("Not in Telegram Mini App");
         }
-
-        // Global function for Unity to call
-        window.getTelegramUsername = getTelegramUsername;
     </script>
 
     <!-- PlayDeck Bridge -->
@@ -183,17 +126,11 @@
             const buildUrl = "Build";
             const loaderUrl = buildUrl + "/WebglBuild.loader.js";
 
-            addDebugLog("🔄 Starting Unity loading...");
-
             const hideLoading = () => {
                 if (loadingElement) {
                     loadingElement.style.display = 'none';
                 }
             };
-
-            const pixelRatioCap = /Mobi|Android|iPhone|iPad|iPod/.test(navigator.userAgent)
-                ? Math.min(window.devicePixelRatio, 1.5)
-                : window.devicePixelRatio;
 
             const config = {
                 dataUrl: buildUrl + "/WebglBuild.data",
@@ -203,15 +140,12 @@
                 companyName: "Artnroll Games",
                 productName: "BitBullz Evolution",
                 productVersion: "0.4",
-                devicePixelRatio: pixelRatioCap,
+                devicePixelRatio: window.devicePixelRatio,
                 showBanner: (msg, type) => {
                     if (type === 'progress') {
                         const progress = Math.round(msg * 100);
                         if (loadingElement) {
                             loadingElement.innerHTML = `Loading... ${progress}%`;
-                        }
-                        if (window.playDeckBridge?.SetLoading) {
-                            window.playDeckBridge.SetLoading(progress);
                         }
                     }
                 }
@@ -222,40 +156,16 @@
             script.onload = () => {
                 createUnityInstance(canvas, config, (progress) => {
                     const progressPercent = Math.round(progress * 100);
-                    addDebugLog(`Unity loading: ${progressPercent}%`);
-
                     if (loadingElement) {
                         loadingElement.innerHTML = `Loading... ${progressPercent}%`;
                     }
-
-                    if (window.playDeckBridge?.SetLoading) {
-                        window.playDeckBridge.SetLoading(progressPercent);
-                    }
                 }).then((unityInstance) => {
-                    addDebugLog("✅ Unity loaded successfully");
+                    console.log("✅ Unity loaded successfully");
                     window.unityInstance = unityInstance;
                     hideLoading();
-
-                    // Initialize bridge with Unity instance
-                    if (window.playDeckBridge?.init) {
-                        window.playDeckBridge.init(unityInstance);
-                    }
-
                 }).catch(err => {
-                    addDebugLog(`❌ Unity failed to load: ${err}`);
-                    if (loadingElement) {
-                        loadingElement.innerHTML = "Failed to load game. Please refresh.";
-                        loadingElement.style.color = "red";
-                    }
+                    console.error("❌ Unity failed to load:", err);
                 });
-            };
-
-            script.onerror = (err) => {
-                addDebugLog(`❌ Failed to load Unity loader: ${err}`);
-                if (loadingElement) {
-                    loadingElement.innerHTML = "Failed to load game. Please refresh.";
-                    loadingElement.style.color = "red";
-                }
             };
 
             document.body.appendChild(script);
