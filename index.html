@@ -46,154 +46,144 @@
     <canvas id="unity-canvas" tabindex="-1"></canvas>
     <div id="loading">Loading...</div>
 
-    <!-- HARDCODE MOBILE DEBUG PANEL -->
-    <div id="fucking-debug" style="
+    <!-- VISUAL MOBILE DEBUG PANEL -->
+    <div id="mobile-debug" style="
         position: fixed;
         top: 10px;
         left: 10px;
         right: 10px;
-        background: #000;
-        color: #fff;
+        background: rgba(0,0,0,0.95);
+        color: white;
         padding: 15px;
-        border: 3px solid red;
+        border: 3px solid #00ff00;
         border-radius: 10px;
         font-family: Arial, sans-serif;
-        font-size: 14px;
-        z-index: 99999;
-        max-height: 300px;
+        font-size: 12px;
+        z-index: 99998;
+        max-height: 200px;
         overflow-y: auto;
     ">
-        <div style="color: red; font-weight: bold; font-size: 16px; margin-bottom: 10px;">
-            🔥 ADSGRAM DEBUG - READ THIS 🔥
+        <div style="color: #00ff00; font-weight: bold; margin-bottom: 10px;">
+            🔍 MOBILE DEBUG - TELEGRAM LOGIN
         </div>
-        <div id="debug-shit" style="line-height: 1.4;">
-            Loading debug info...
+        <div id="debug-content">
+            Initializing...
         </div>
-        <button onclick="document.getElementById('fucking-debug').style.display='none'"
-                style="margin-top: 10px; padding: 5px 10px; background: red; color: white; border: none; border-radius: 5px;">
-            Close This Shit
+        <button onclick="toggleDebug()" style="margin-top: 10px; padding: 5px 10px; background: #333; color: white; border: none; border-radius: 5px;">
+            Hide Debug
         </button>
     </div>
+
+    <!-- Telegram Login Bridge -->
+    <script>
+        // Mobile Debug Functions
+        let debugLogs = [];
+        const debugPanel = document.getElementById('mobile-debug');
+        const debugContent = document.getElementById('debug-content');
+
+        function addDebugLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLogs.push(`[${timestamp}] ${message}`);
+
+            // Keep only last 20 logs
+            if (debugLogs.length > 20) {
+                debugLogs.shift();
+            }
+
+            // Update debug panel
+            debugContent.innerHTML = debugLogs.join('<br>');
+            debugContent.scrollTop = debugContent.scrollHeight;
+
+            // Also log to console
+            console.log(`[DEBUG] ${message}`);
+        }
+
+        function toggleDebug() {
+            if (debugPanel.style.display === 'none') {
+                debugPanel.style.display = 'block';
+            } else {
+                debugPanel.style.display = 'none';
+            }
+        }
+
+        // Telegram Username Bridge
+        function getTelegramUsername(gameObjectName, callbackMethod) {
+            addDebugLog(`📞 JavaScript called from Unity`);
+
+            try {
+                if (window.Telegram && window.Telegram.WebApp) {
+                    addDebugLog("✅ Telegram WebApp detected in JS call");
+
+                    const user = window.Telegram.WebApp.initDataUnsafe?.user;
+                    addDebugLog("Telegram user object:", user);
+
+                    if (user) {
+                        let username = user.username || user.first_name || `Player_${user.id}`;
+                        addDebugLog(`✅ Found Telegram username: ${username}`);
+
+                        if (window.unityInstance) {
+                            window.unityInstance.SendMessage(gameObjectName, callbackMethod, username);
+                            addDebugLog(`🚀 Sent to Unity: ${username}`);
+                        }
+                        return;
+                    }
+                }
+
+                addDebugLog("❌ No Telegram username found in JS call");
+                if (window.unityInstance) {
+                    window.unityInstance.SendMessage(gameObjectName, callbackMethod, "TelegramUser");
+                }
+
+            } catch (error) {
+                addDebugLog(`❌ Error in JS call: ${error}`);
+            }
+        }
+
+        // Initialize when Telegram is ready
+        if (window.Telegram && window.Telegram.WebApp) {
+            addDebugLog("🤖 Telegram WebApp initialized");
+            window.Telegram.WebApp.ready();
+
+            const user = window.Telegram.WebApp.initDataUnsafe?.user;
+            if (user) {
+                addDebugLog('✅ Telegram user data found:');
+                addDebugLog(`- ID: ${user.id}`);
+                addDebugLog(`- Username: ${user.username || 'Not set'}`);
+                addDebugLog(`- First Name: ${user.first_name || 'Not set'}`);
+
+                // Auto-send to Unity after a delay
+                setTimeout(() => {
+                    const username = user.username || user.first_name || `Player_${user.id}`;
+                    addDebugLog(`🚀 Auto-sending to Unity: ${username}`);
+                    if (window.unityInstance) {
+                        window.unityInstance.SendMessage('LoginManager', 'OnUsernameReceived', username);
+                    }
+                }, 2000);
+            } else {
+                addDebugLog('❌ No Telegram user data in initDataUnsafe');
+                addDebugLog('Full initDataUnsafe:', window.Telegram.WebApp.initDataUnsafe);
+            }
+        } else {
+            addDebugLog('❌ Telegram WebApp not detected');
+            addDebugLog('Make sure you are in Telegram Mini App');
+        }
+
+        // Global function for Unity to call
+        window.getTelegramUsername = getTelegramUsername;
+    </script>
 
     <!-- PlayDeck Bridge -->
     <script src="playdeckBridge.js"></script>
 
     <script>
-        // Function to update the fucking debug panel
-        function updateDebugShit(message, isError = false) {
-            const debugShit = document.getElementById('debug-shit');
-            if (debugShit) {
-                const color = isError ? 'red' : 'white';
-                debugShit.innerHTML += `<div style="color: ${color}; margin: 5px 0;">${new Date().toLocaleTimeString()}: ${message}</div>`;
-                debugShit.scrollTop = debugShit.scrollHeight;
-            }
-            console.log(message);
-        }
-
-        // Function to scream errors in console
-        function screamError(message) {
-            console.error(`🔴🔴🔴 ADSGRAM FAILURE: ${message} 🔴🔴🔴`);
-            console.error(`📍 DOMAIN: artnroll.github.io`);
-            console.error(`📍 AD UNIT: 15876`);
-            console.error(`📍 TELEGRAM: ${!!window.Telegram?.WebApp}`);
-        }
-
-        // Start nuclear debugging
-        updateDebugShit("🚀 STARTING NUCLEAR ADSGRAM DEBUG...");
-        console.log("=== 🔥 NUCLEAR ADSGRAM DEBUG STARTED 🔥 ===");
-
-        // Check environment immediately
-        updateDebugShit(`📍 Telegram WebApp: ${!!window.Telegram?.WebApp}`);
-        updateDebugShit(`📍 AdsGram SDK: ${!!window.AdsGram}`);
-
-        // Check if AdsGram script tag exists
-        const adsGramScript = Array.from(document.scripts).find(s => s.src.includes('adsgram'));
-        if (!adsGramScript) {
-            screamError("SCRIPT TAG NOT FOUND - AdsGram script never loaded from CDN");
-            updateDebugShit("🔴 ADSGRAM SCRIPT TAG NOT FOUND IN PAGE", true);
-            updateDebugShit("🔴 CDN FAILED TO LOAD - NETWORK ISSUE", true);
-        } else {
-            updateDebugShit("✅ AdsGram script tag found in HTML");
-            updateDebugShit(`📦 Script URL: ${adsGramScript.src}`);
-
-            // Add error handling to script tag
-            adsGramScript.onerror = function (e) {
-                screamError("SCRIPT LOAD ERROR - Network failure or CDN down");
-                updateDebugShit("🔴 NETWORK FAILED TO LOAD ADSGRAM SDK", true);
-                updateDebugShit("🔴 Check if CDN is blocked in your region", true);
-            };
-
-            adsGramScript.onload = function () {
-                updateDebugShit("✅ Script onload fired - CDN loaded successfully");
-                adsGramScript.setAttribute('data-loaded', 'true');
-            };
-        }
-
-        // Wait and check if AdsGram loads
-        setTimeout(() => {
-            updateDebugShit("=== 🕒 CHECKING ADSGRAM LOAD STATUS ===");
-
-            if (!window.AdsGram) {
-                screamError("WINDOW.ADSGRAM IS UNDEFINED - DOMAIN BLOCKED BY ADSGRAM");
-                updateDebugShit("🔴 CRITICAL: AdsGram SDK NOT LOADED", true);
-                updateDebugShit("🔴 REASON: Domain artnroll.github.io not whitelisted", true);
-                updateDebugShit("🔴 AdsGram is BLOCKING your domain", true);
-                updateDebugShit("🔴 SOLUTION: Contact AdsGram support to whitelist domain", true);
-
-                // Try to detect network issues
-                fetch('https://sad.adsgram.ai/js/sad.min.js', { mode: 'no-cors' })
-                    .then(() => {
-                        updateDebugShit("🌐 CDN is accessible - Domain definitely blocked", true);
-                    })
-                    .catch(err => {
-                        updateDebugShit(`🌐 CDN network error: ${err}`, true);
-                    });
-            } else {
-                updateDebugShit("✅🎉 ADSGRAM SDK LOADED SUCCESSFULLY!");
-                updateDebugShit(`📦 Available methods: ${Object.keys(window.AdsGram).join(', ')}`);
-
-                // Test initialization
-                if (window.AdsGram.init) {
-                    updateDebugShit("🔄 Testing AdsGram initialization...");
-                    window.AdsGram.init()
-                        .then(() => {
-                            updateDebugShit("✅🎉 ADSGRAM INITIALIZED SUCCESSFULLY!");
-                            updateDebugShit("🚀 REAL ADS SHOULD WORK NOW!");
-                        })
-                        .catch(initError => {
-                            screamError(`INIT FAILED: ${initError}`);
-                            updateDebugShit(`🔴 INIT FAILED: ${initError}`, true);
-                            updateDebugShit("🔴 Check AdsGram dashboard configuration", true);
-                        });
-                } else {
-                    updateDebugShit("🔴 AdsGram.init method not available", true);
-                }
-            }
-        }, 3000);
-
-        // Continuous monitoring
-        let checkCount = 0;
-        const adsGramCheck = setInterval(() => {
-            checkCount++;
-            if (window.AdsGram) {
-                updateDebugShit(`✅ AdsGram loaded after ${checkCount} seconds`);
-                clearInterval(adsGramCheck);
-            } else if (checkCount >= 10) {
-                updateDebugShit(`🔴 AdsGram still not loaded after ${checkCount} seconds`, true);
-                updateDebugShit("🔴 DEFINITIVE: Domain blocking issue", true);
-                updateDebugShit("🔴 CONTACT ADSGRAM SUPPORT: domain artnroll.github.io", true);
-                clearInterval(adsGramCheck);
-            } else {
-                updateDebugShit(`⏳ Waiting for AdsGram... ${checkCount}s`);
-            }
-        }, 1000);
-
-        // Your existing Unity loading code
+        // Wait for DOM to load
         window.addEventListener('DOMContentLoaded', function () {
             const canvas = document.querySelector("#unity-canvas");
             const loadingElement = document.querySelector("#loading");
             const buildUrl = "Build";
             const loaderUrl = buildUrl + "/WebglBuild.loader.js";
+
+            addDebugLog("🔄 Starting Unity loading...");
 
             const hideLoading = () => {
                 if (loadingElement) {
@@ -215,7 +205,6 @@
                 productVersion: "0.4",
                 devicePixelRatio: pixelRatioCap,
                 showBanner: (msg, type) => {
-                    console.log(type, msg);
                     if (type === 'progress') {
                         const progress = Math.round(msg * 100);
                         if (loadingElement) {
@@ -228,14 +217,12 @@
                 }
             };
 
-            updateDebugShit("Starting Unity WebGL build...");
-
             const script = document.createElement("script");
             script.src = loaderUrl;
             script.onload = () => {
                 createUnityInstance(canvas, config, (progress) => {
                     const progressPercent = Math.round(progress * 100);
-                    updateDebugShit(`Unity loading: ${progressPercent}%`);
+                    addDebugLog(`Unity loading: ${progressPercent}%`);
 
                     if (loadingElement) {
                         loadingElement.innerHTML = `Loading... ${progressPercent}%`;
@@ -245,7 +232,7 @@
                         window.playDeckBridge.SetLoading(progressPercent);
                     }
                 }).then((unityInstance) => {
-                    updateDebugShit("✅ Unity loaded successfully");
+                    addDebugLog("✅ Unity loaded successfully");
                     window.unityInstance = unityInstance;
                     hideLoading();
 
@@ -255,7 +242,7 @@
                     }
 
                 }).catch(err => {
-                    updateDebugShit(`❌ Unity failed to load: ${err}`, true);
+                    addDebugLog(`❌ Unity failed to load: ${err}`);
                     if (loadingElement) {
                         loadingElement.innerHTML = "Failed to load game. Please refresh.";
                         loadingElement.style.color = "red";
@@ -264,7 +251,7 @@
             };
 
             script.onerror = (err) => {
-                updateDebugShit(`❌ Failed to load Unity loader: ${err}`, true);
+                addDebugLog(`❌ Failed to load Unity loader: ${err}`);
                 if (loadingElement) {
                     loadingElement.innerHTML = "Failed to load game. Please refresh.";
                     loadingElement.style.color = "red";
@@ -273,9 +260,6 @@
 
             document.body.appendChild(script);
         });
-
-        updateDebugShit("🔧 Debug system ready - waiting for AdsGram...");
-        console.log("=== 🏁 NUCLEAR DEBUG SYSTEM READY ===");
     </script>
 </body>
 </html>
