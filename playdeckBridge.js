@@ -1,4 +1,4 @@
-﻿// PlayDeck Bridge - ENHANCED ADSGRAM VERSION
+﻿// PlayDeck Bridge - FIXED ADSGRAM VERSION
 (function () {
     'use strict';
 
@@ -36,6 +36,65 @@
 
     debugLog("Bridge loading...");
 
+    // AdsGram detection and initialization
+    let adsGramInitialized = false;
+    let adsGramAvailable = false;
+
+    function initializeAdsGram() {
+        debugLog("=== INITIALIZING ADSGRAM ===");
+
+        // Check if we're in Telegram
+        const isTelegram = !!(window.Telegram && window.Telegram.WebApp);
+        debugLog(`In Telegram: ${isTelegram}`);
+
+        if (!isTelegram) {
+            debugLog("Not in Telegram - AdsGram not needed");
+            adsGramAvailable = true; // Simulator mode will work
+            adsGramInitialized = true;
+            return;
+        }
+
+        // Check if AdsGram SDK is loaded
+        debugLog(`AdsGram SDK available: ${!!window.AdsGram}`);
+        debugLog(`AdsGram object:`, window.AdsGram);
+
+        if (window.AdsGram) {
+            try {
+                // Try to initialize AdsGram
+                debugLog("Attempting to initialize AdsGram...");
+
+                // Check if AdsGram has the required methods
+                const hasShowRewarded = typeof window.AdsGram.showRewarded === 'function';
+                const hasShowInterstitial = typeof window.AdsGram.showInterstitial === 'function';
+
+                debugLog(`AdsGram.showRewarded available: ${hasShowRewarded}`);
+                debugLog(`AdsGram.showInterstitial available: ${hasShowInterstitial}`);
+
+                if (hasShowRewarded) {
+                    adsGramAvailable = true;
+                    adsGramInitialized = true;
+                    debugLog("✅ AdsGram initialized successfully!");
+                } else {
+                    debugLog("❌ AdsGram doesn't have required methods");
+                    adsGramAvailable = false;
+                    adsGramInitialized = true;
+                }
+            } catch (error) {
+                debugLog(`❌ AdsGram initialization error: ${error}`);
+                adsGramAvailable = false;
+                adsGramInitialized = true;
+            }
+        } else {
+            debugLog("❌ AdsGram SDK not loaded");
+            adsGramAvailable = false;
+            adsGramInitialized = true;
+        }
+    }
+
+    // Initialize AdsGram when bridge loads
+    setTimeout(initializeAdsGram, 1000);
+    setTimeout(initializeAdsGram, 3000); // Retry after 3 seconds
+
     // Simple global functions that won't lose scope
     window.PlayDeck_SetLoading = function (progress) {
         console.log("SetLoading:", progress);
@@ -50,21 +109,41 @@
     };
 
     window.PlayDeck_AreAdsAvailable = function () {
+        // If AdsGram not initialized yet, try to initialize now
+        if (!adsGramInitialized) {
+            initializeAdsGram();
+        }
+
         const isTelegram = !!(window.Telegram && window.Telegram.WebApp);
-        const available = isTelegram ? !!window.AdsGram : true;
-        debugLog(`Ads Available Check - Telegram: ${isTelegram}, AdsGram: ${!!window.AdsGram}, Available: ${available}`);
+        let available = false;
+
+        if (isTelegram) {
+            available = adsGramAvailable;
+            debugLog(`Ads Available Check - In Telegram: ${isTelegram}, AdsGram: ${adsGramAvailable}, Final: ${available}`);
+        } else {
+            available = true; // Simulator mode always available
+            debugLog(`Ads Available Check - Not in Telegram, Simulator available: ${available}`);
+        }
+
         return available;
     };
 
     window.PlayDeck_PreloadAds = function () {
         debugLog("PreloadAds called");
-        // AdsGram doesn't need preloading, but we can check availability
-        if (window.Telegram && window.Telegram.WebApp && window.AdsGram) {
-            debugLog("✅ AdsGram is available in Telegram");
-        } else if (!window.Telegram) {
-            debugLog("ℹ️ Not in Telegram - using simulator ads");
+
+        // Initialize AdsGram if not done
+        if (!adsGramInitialized) {
+            initializeAdsGram();
+        }
+
+        if (window.Telegram && window.Telegram.WebApp) {
+            if (adsGramAvailable) {
+                debugLog("✅ AdsGram is available and ready in Telegram");
+            } else {
+                debugLog("❌ AdsGram not available in Telegram");
+            }
         } else {
-            debugLog("❌ AdsGram not available");
+            debugLog("ℹ️ Not in Telegram - simulator ads will work");
         }
     };
 
@@ -73,19 +152,16 @@
 
         return new Promise((resolve, reject) => {
             const isTelegram = !!(window.Telegram && window.Telegram.WebApp);
-            debugLog(`Environment - In Telegram: ${isTelegram}`);
+            debugLog(`Environment - In Telegram: ${isTelegram}, AdsGram Available: ${adsGramAvailable}`);
 
             if (!isTelegram) {
                 debugLog("SIMULATOR: Showing fake rewarded ad (2s delay)");
                 setTimeout(() => {
                     debugLog("SIMULATOR: Ad completed successfully");
 
-                    // Notify Unity directly
                     if (window.unityInstance && window.unityInstance.SendMessage) {
                         window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "true");
                         debugLog("✅ Sent success to Unity AdsManager");
-                    } else {
-                        debugLog("❌ Unity instance not available to send result");
                     }
 
                     resolve(true);
@@ -94,12 +170,10 @@
             }
 
             // Real AdsGram implementation
-            debugLog("Checking AdsGram availability...");
-            if (!window.AdsGram) {
-                debugLog("❌ AdsGram not available");
+            if (!adsGramAvailable) {
+                debugLog("❌ AdsGram not available - cannot show ad");
                 if (window.unityInstance && window.unityInstance.SendMessage) {
                     window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
-                    debugLog("Sent failure to Unity AdsManager");
                 }
                 reject(false);
                 return;
@@ -107,7 +181,8 @@
 
             debugLog("✅ AdsGram available, showing rewarded ad...");
 
-            const adBlockId = '15960'; // ← CHANGE THIS TO YOUR AD BLOCK ID
+            // REPLACE '15876' WITH YOUR ACTUAL AD BLOCK ID
+            const adBlockId = '15876'; // ← CHANGE THIS TO YOUR AD BLOCK ID
             debugLog(`Using Ad Block ID: ${adBlockId}`);
 
             try {
@@ -116,7 +191,6 @@
                         debugLog("✅ Rewarded ad completed successfully - user earned reward");
                         if (window.unityInstance && window.unityInstance.SendMessage) {
                             window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "true");
-                            debugLog("Sent success to Unity AdsManager");
                         }
                         resolve(true);
                     },
@@ -124,7 +198,6 @@
                         debugLog("❌ Rewarded ad closed without reward");
                         if (window.unityInstance && window.unityInstance.SendMessage) {
                             window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
-                            debugLog("Sent failure to Unity AdsManager");
                         }
                         reject(false);
                     },
@@ -132,7 +205,6 @@
                         debugLog(`❌ Rewarded ad error: ${error}`);
                         if (window.unityInstance && window.unityInstance.SendMessage) {
                             window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
-                            debugLog("Sent failure to Unity AdsManager");
                         }
                         reject(false);
                     }
@@ -215,6 +287,6 @@
     setTimeout(autoDetectTelegram, 2000);
     setTimeout(autoDetectTelegram, 5000);
 
-    debugLog("✅ PlayDeck Bridge ready with Enhanced AdsGram");
+    debugLog("✅ PlayDeck Bridge ready with Fixed AdsGram");
 
 })();

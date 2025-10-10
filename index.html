@@ -6,10 +6,10 @@
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
 
-    <!-- TELEGRAM WEBAPP SDK - ADD THIS -->
+    <!-- TELEGRAM WEBAPP SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- CORRECT AdsGram SDK from documentation -->
-    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+    <!-- ADSGRAM SDK - ADD ASYNC LOADING -->
+    <script src="https://sad.adsgram.ai/js/sad.min.js" async></script>
 
     <style>
         html, body {
@@ -56,11 +56,17 @@
             const buildUrl = "Build";
             const loaderUrl = buildUrl + "/WebglBuild.loader.js";
 
-            console.log("🔧 DOM loaded, checking Telegram...");
+            console.log("🔧 DOM loaded, checking Telegram and AdsGram...");
             console.log("Telegram available:", !!window.Telegram);
+            console.log("AdsGram available:", !!window.AdsGram);
+
             if (window.Telegram) {
                 console.log("Telegram.WebApp:", window.Telegram.WebApp);
                 console.log("Telegram user:", window.Telegram.WebApp?.initDataUnsafe?.user);
+            }
+
+            if (window.AdsGram) {
+                console.log("AdsGram methods:", Object.keys(window.AdsGram));
             }
 
             const hideLoading = () => {
@@ -89,9 +95,6 @@
                         if (loadingElement) {
                             loadingElement.innerHTML = `Loading... ${progress}%`;
                         }
-                        if (window.playDeckBridge?.SetLoading) {
-                            window.playDeckBridge.SetLoading(progress);
-                        }
                     }
                 }
             };
@@ -108,10 +111,6 @@
                     if (loadingElement) {
                         loadingElement.innerHTML = `Loading... ${progressPercent}%`;
                     }
-
-                    if (window.playDeckBridge?.SetLoading) {
-                        window.playDeckBridge.SetLoading(progressPercent);
-                    }
                 }).then((unityInstance) => {
                     console.log("✅ Unity loaded successfully");
                     window.unityInstance = unityInstance;
@@ -121,11 +120,6 @@
                     console.log("🔄 Force-sending Telegram username to Unity...");
                     if (window.getTelegramUsername) {
                         window.getTelegramUsername('LoginManager', 'OnUsernameReceived');
-                    }
-
-                    // Initialize bridge with Unity instance
-                    if (window.playDeckBridge?.init) {
-                        window.playDeckBridge.init(unityInstance);
                     }
 
                 }).catch(err => {
