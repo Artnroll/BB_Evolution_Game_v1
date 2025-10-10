@@ -1,4 +1,4 @@
-﻿// PlayDeck Bridge - SIMPLIFIED VERSION
+﻿// PlayDeck Bridge - IMPROVED TELEGRAM DETECTION
 (function () {
     'use strict';
 
@@ -20,10 +20,15 @@
         initializeTelegramUsername: function () {
             console.log("Initializing Telegram username detection...");
 
-            // Small delay to ensure everything is loaded
-            setTimeout(() => {
+            // Check immediately if we're in Telegram
+            if (this.isTelegramWebApp()) {
+                console.log("✓ Running in Telegram WebApp");
                 this.getTelegramUsername();
-            }, 1000);
+            } else {
+                console.log("✗ Not in Telegram WebApp");
+                // Signal to Unity that Telegram is not available
+                this.signalTelegramNotAvailable();
+            }
         },
 
         isTelegramWebApp: function () {
@@ -34,59 +39,63 @@
             console.log("Getting Telegram username...");
 
             try {
-                if (this.isTelegramWebApp()) {
-                    console.log("Running in Telegram WebApp");
-                    const webApp = window.Telegram.WebApp;
+                const webApp = window.Telegram.WebApp;
 
-                    // Initialize WebApp
-                    webApp.ready();
-                    webApp.expand();
+                // Initialize WebApp
+                webApp.ready();
+                webApp.expand();
 
-                    // Get user data
-                    const user = webApp.initDataUnsafe?.user;
-                    console.log("Telegram user data:", user);
+                // Get user data
+                const user = webApp.initDataUnsafe?.user;
+                console.log("Telegram user data:", user);
 
-                    if (user) {
-                        let username = null;
+                if (user) {
+                    let username = null;
 
-                        if (user.username) {
-                            username = "@" + user.username;
-                            console.log("Found Telegram username:", username);
-                        } else if (user.first_name) {
-                            username = user.first_name;
-                            console.log("Using Telegram first name:", username);
-                        } else if (user.id) {
-                            username = "User_" + user.id;
-                            console.log("Using Telegram user ID:", username);
-                        }
+                    if (user.username) {
+                        username = "@" + user.username;
+                        console.log("✓ Found Telegram username:", username);
+                    } else if (user.first_name) {
+                        username = user.first_name;
+                        console.log("✓ Using Telegram first name:", username);
+                    } else if (user.id) {
+                        username = "User_" + user.id;
+                        console.log("✓ Using Telegram user ID:", username);
+                    }
 
-                        if (username && unityInstance) {
-                            console.log("Sending Telegram username to Unity:", username);
-                            unityInstance.SendMessage('LoginManager', 'OnTelegramUsernameReceived', username);
-                            return;
-                        }
+                    if (username && unityInstance) {
+                        console.log("Sending Telegram username to Unity:", username);
+                        unityInstance.SendMessage('LoginManager', 'OnTelegramUsernameReceived', username);
+                        return;
                     }
                 }
 
-                // Fallback for non-Telegram or no user data
-                console.log("Not in Telegram or no user data, using fallback");
-                this.sendFallbackUsername();
+                // If we're in Telegram but no user data
+                console.log("In Telegram but no user data available");
+                this.sendTelegramFallback();
 
             } catch (error) {
                 console.error("Error getting Telegram username:", error);
-                this.sendFallbackUsername();
+                this.sendTelegramFallback();
             }
         },
 
-        sendFallbackUsername: function () {
-            const fallbackUsername = "Guest_" + Math.random().toString(36).substr(2, 6);
-            console.log("Using fallback username:", fallbackUsername);
+        sendTelegramFallback: function () {
+            const fallbackUsername = "TelegramUser_" + Math.random().toString(36).substr(2, 6);
+            console.log("Using Telegram fallback username:", fallbackUsername);
 
             if (unityInstance) {
-                // Small delay to ensure Unity is ready
                 setTimeout(() => {
                     unityInstance.SendMessage('LoginManager', 'OnTelegramUsernameReceived', fallbackUsername);
                 }, 500);
+            }
+        },
+
+        signalTelegramNotAvailable: function () {
+            if (unityInstance) {
+                setTimeout(() => {
+                    unityInstance.SendMessage('LoginManager', 'OnTelegramNotAvailable', '');
+                }, 1000);
             }
         },
 
