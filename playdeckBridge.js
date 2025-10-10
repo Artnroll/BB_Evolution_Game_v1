@@ -1,4 +1,4 @@
-﻿// PlayDeck Bridge - SIMPLIFIED ADSGRAM VERSION
+﻿// PlayDeck Bridge - DYNAMIC ADSGRAM VERSION
 (function () {
     'use strict';
 
@@ -38,14 +38,42 @@
 
     // AdsGram state
     let adsGramReady = false;
-    let adsGramLoading = false;
+    let adsGramMethod = null;
+
+    // Function to find AdsGram method
+    function findAdsGramMethod() {
+        debugLog("=== FINDING ADSGRAM METHOD ===");
+
+        if (!window.AdsGram) {
+            debugLog("❌ AdsGram not available");
+            return null;
+        }
+
+        // List of possible method names
+        const possibleMethods = [
+            'showRewarded',
+            'showRewardedAd',
+            'showAd',
+            'showInterstitial',
+            'loadRewarded',
+            'displayAd'
+        ];
+
+        for (const method of possibleMethods) {
+            if (typeof window.AdsGram[method] === 'function') {
+                debugLog(`✅ Found AdsGram method: ${method}`);
+                return method;
+            }
+        }
+
+        debugLog("❌ No known AdsGram methods found");
+        debugLog("Available methods:", Object.getOwnPropertyNames(window.AdsGram));
+        return null;
+    }
 
     // Function to initialize AdsGram
     function initializeAdsGram() {
-        if (adsGramLoading || adsGramReady) return;
-
         debugLog("=== INITIALIZING ADSGRAM ===");
-        adsGramLoading = true;
 
         const isTelegram = !!(window.Telegram && window.Telegram.WebApp);
         debugLog(`In Telegram: ${isTelegram}`);
@@ -53,51 +81,28 @@
         if (!isTelegram) {
             debugLog("Not in Telegram - simulator mode");
             adsGramReady = true;
-            adsGramLoading = false;
             return;
         }
 
         debugLog(`AdsGram exists: ${!!window.AdsGram}`);
 
         if (window.AdsGram) {
-            // AdsGram is already loaded
-            checkAdsGramMethods();
+            adsGramMethod = findAdsGramMethod();
+            adsGramReady = !!adsGramMethod;
+
+            if (adsGramReady) {
+                debugLog(`✅ AdsGram ready with method: ${adsGramMethod}`);
+            } else {
+                debugLog("❌ AdsGram not ready - no suitable method found");
+            }
         } else {
-            // Try to load AdsGram
-            debugLog("AdsGram not found, attempting to load...");
-            loadAdsGram();
+            debugLog("❌ AdsGram not loaded");
         }
-    }
-
-    function loadAdsGram() {
-        const script = document.createElement('script');
-        script.src = 'https://sad.adsgram.ai/js/sad.min.js';
-        script.onload = function () {
-            debugLog("✅ AdsGram script loaded");
-            checkAdsGramMethods();
-        };
-        script.onerror = function () {
-            debugLog("❌ Failed to load AdsGram script");
-            adsGramLoading = false;
-        };
-        document.head.appendChild(script);
-    }
-
-    function checkAdsGramMethods() {
-        debugLog("Checking AdsGram methods...");
-
-        if (window.AdsGram && typeof window.AdsGram.showRewarded === 'function') {
-            adsGramReady = true;
-            debugLog("✅ AdsGram is ready with showRewarded method");
-        } else {
-            debugLog("❌ AdsGram doesn't have showRewarded method");
-            adsGramReady = false;
-        }
-        adsGramLoading = false;
     }
 
     // Initialize AdsGram when bridge loads
     setTimeout(initializeAdsGram, 1000);
+    setTimeout(initializeAdsGram, 3000);
 
     // Simple global functions
     window.PlayDeck_SetLoading = function (progress) {
@@ -117,14 +122,12 @@
         let available = false;
 
         if (isTelegram) {
-            // If in Telegram, check if AdsGram is ready
-            if (!adsGramReady && !adsGramLoading) {
+            if (!adsGramReady) {
                 initializeAdsGram();
             }
             available = adsGramReady;
             debugLog(`Ads Available - Telegram: ${isTelegram}, AdsGram: ${adsGramReady}, Final: ${available}`);
         } else {
-            // Not in Telegram - simulator mode always available
             available = true;
             debugLog(`Ads Available - Simulator: ${available}`);
         }
@@ -142,7 +145,7 @@
 
         return new Promise((resolve, reject) => {
             const isTelegram = !!(window.Telegram && window.Telegram.WebApp);
-            debugLog(`Environment - Telegram: ${isTelegram}, AdsGram Ready: ${adsGramReady}`);
+            debugLog(`Environment - Telegram: ${isTelegram}, AdsGram Ready: ${adsGramReady}, Method: ${adsGramMethod}`);
 
             if (!isTelegram) {
                 debugLog("SIMULATOR: Fake ad (2s)");
@@ -156,8 +159,8 @@
                 return;
             }
 
-            if (!adsGramReady) {
-                debugLog("❌ AdsGram not ready");
+            if (!adsGramReady || !adsGramMethod) {
+                debugLog("❌ AdsGram not ready or no method available");
                 if (window.unityInstance) {
                     window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
                 }
@@ -165,11 +168,12 @@
                 return;
             }
 
-            debugLog("✅ Showing AdsGram rewarded ad");
+            debugLog(`✅ Showing AdsGram ad using method: ${adsGramMethod}`);
             const adBlockId = '15876'; // YOUR AD BLOCK ID
 
             try {
-                window.AdsGram.showRewarded(adBlockId, {
+                // Dynamically call whatever method we found
+                window.AdsGram[adsGramMethod](adBlockId, {
                     onReward: (reward) => {
                         debugLog("✅ Ad rewarded");
                         if (window.unityInstance) {
@@ -239,6 +243,6 @@
         }, 1000);
     };
 
-    debugLog("✅ PlayDeck Bridge ready");
+    debugLog("✅ PlayDeck Bridge ready with Dynamic AdsGram");
 
 })();
