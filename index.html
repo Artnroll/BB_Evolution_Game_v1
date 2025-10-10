@@ -6,10 +6,9 @@
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
 
-    <!-- TELEGRAM WEBAPP SDK -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- TRY DIFFERENT ADSGRAM SDK URL -->
-    <script src="https://cdn.adsgram.ai/sdk.js"></script>
+    <!-- AdsGram SDK (common host). Keep this first so SDK can load early.
+         If AdsGram gives a different script URL for you, replace this URL with theirs. -->
+    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
     <style>
         html, body {
@@ -46,8 +45,8 @@
             left: 10px;
             background: rgba(0,0,0,0.8);
             color: white;
-            padding: 10px;
-            border-radius: 5px;
+            padding: 8px;
+            border-radius: 6px;
             font-family: Arial, sans-serif;
             font-size: 12px;
             z-index: 10001;
@@ -59,70 +58,33 @@
     <div id="loading">Loading...</div>
     <div id="adsgram-status">Checking AdsGram...</div>
 
-    <!-- PlayDeck Bridge -->
+    <!-- PlayDeck bridge (our unified bridge) -->
     <script src="playdeckBridge.js"></script>
 
     <script>
-        // Enhanced AdsGram checking
-        function checkAdsGramMethods() {
-            const statusElement = document.getElementById('adsgram-status');
-            if (!window.AdsGram) {
-                if (statusElement) {
-                    statusElement.innerHTML = "❌ AdsGram not loaded";
-                    statusElement.style.background = 'rgba(255,0,0,0.8)';
-                }
-                return;
-            }
-
-            // Log ALL methods and properties of AdsGram
-            console.log("=== ADSGRAM FULL INSPECTION ===");
-            console.log("AdsGram object:", window.AdsGram);
-            console.log("AdsGram methods:", Object.getOwnPropertyNames(window.AdsGram));
-
-            // Check for common ad method names
-            const possibleMethods = [
-                'showRewarded', 'showRewardedAd', 'showAd', 'showInterstitial',
-                'loadRewarded', 'loadAd', 'displayAd', 'showBanner'
-            ];
-
-            let foundMethods = [];
-            for (const method of possibleMethods) {
-                if (typeof window.AdsGram[method] === 'function') {
-                    foundMethods.push(method);
-                }
-            }
-
-            console.log("Found AdsGram methods:", foundMethods);
-
-            if (statusElement) {
-                if (foundMethods.length > 0) {
-                    statusElement.innerHTML = `✅ AdsGram Loaded<br>Methods: ${foundMethods.join(', ')}`;
-                    statusElement.style.background = 'rgba(0,255,0,0.8)';
-                } else {
-                    statusElement.innerHTML = `❌ AdsGram loaded but no ad methods found`;
-                    statusElement.style.background = 'rgba(255,165,0,0.8)';
-                }
-            }
-        }
-
-        // Wait for DOM to load
+        // wait DOMContentLoaded to create unity instance
         window.addEventListener('DOMContentLoaded', function () {
             const canvas = document.querySelector("#unity-canvas");
             const loadingElement = document.querySelector("#loading");
+            const adsStatus = document.querySelector("#adsgram-status");
             const buildUrl = "Build";
             const loaderUrl = buildUrl + "/WebglBuild.loader.js";
 
-            console.log("🔧 DOM loaded, checking AdsGram...");
+            function setAdsStatus(text, color) {
+                if (!adsStatus) return;
+                adsStatus.innerHTML = text;
+                if (color) adsStatus.style.background = color;
+            }
 
-            // Check AdsGram immediately and periodically
-            checkAdsGramMethods();
-            setTimeout(checkAdsGramMethods, 1000);
-            setTimeout(checkAdsGramMethods, 3000);
+            // quick AdsGram presence check (we'll have better checks inside playdeckBridge)
+            setAdsStatus("Checking AdsGram presence...", 'rgba(255,165,0,0.8)');
+            setTimeout(() => {
+                const present = !!(window.AdsGram || window.Adsgram || window.sad);
+                setAdsStatus(present ? "AdsGram script loaded (probable)" : "AdsGram not detected", present ? 'rgba(0,128,0,0.8)' : 'rgba(255,0,0,0.8)');
+            }, 800);
 
             const hideLoading = () => {
-                if (loadingElement) {
-                    loadingElement.style.display = 'none';
-                }
+                if (loadingElement) loadingElement.style.display = 'none';
             };
 
             const pixelRatioCap = /Mobi|Android|iPhone|iPad|iPod/.test(navigator.userAgent)
@@ -134,60 +96,60 @@
                 frameworkUrl: buildUrl + "/WebglBuild.framework.js",
                 codeUrl: buildUrl + "/WebglBuild.wasm",
                 streamingAssetsUrl: "StreamingAssets",
-                companyName: "Your Company",
-                productName: "Your Game",
-                productVersion: "1.0",
+                companyName: "Artnroll Games",
+                productName: "BitBullz Evolution",
+                productVersion: "0.4",
                 devicePixelRatio: pixelRatioCap,
                 showBanner: (msg, type) => {
                     if (type === 'progress') {
-                        const progress = Math.round(msg * 100);
-                        if (loadingElement) {
-                            loadingElement.innerHTML = `Loading... ${progress}%`;
+                        const progressPercent = Math.round(msg * 100);
+                        if (loadingElement) loadingElement.innerHTML = `Loading... ${progressPercent}%`;
+                        // keep PlayDeck.SetLoading compatibility if used
+                        if (window.PlayDeck_SetLoading) {
+                            try { window.PlayDeck_SetLoading(progressPercent); } catch (e) { }
                         }
                     }
                 }
             };
-
-            console.log("🚀 Starting Unity WebGL build...");
 
             const script = document.createElement("script");
             script.src = loaderUrl;
             script.onload = () => {
                 createUnityInstance(canvas, config, (progress) => {
                     const progressPercent = Math.round(progress * 100);
-                    if (loadingElement) {
-                        loadingElement.innerHTML = `Loading... ${progressPercent}%`;
+                    if (loadingElement) loadingElement.innerHTML = `Loading... ${progressPercent}%`;
+                    if (window.PlayDeck_SetLoading) {
+                        try { window.PlayDeck_SetLoading(progressPercent); } catch (e) { }
                     }
                 }).then((unityInstance) => {
-                    console.log("✅ Unity loaded successfully");
+                    console.log("Unity loaded");
                     window.unityInstance = unityInstance;
                     hideLoading();
 
-                    // Final AdsGram check
-                    checkAdsGramMethods();
-
-                    // Force send Telegram username
-                    if (window.getTelegramUsername) {
-                        window.getTelegramUsername('LoginManager', 'OnUsernameReceived');
+                    // give the bridge the unity instance if it has init method
+                    if (window.playDeckBridge && typeof window.playDeckBridge.init === 'function') {
+                        try { window.playDeckBridge.init(unityInstance); } catch (e) { console.warn(e); }
                     }
 
+                    // Force get Telegram username once loaded (safe if function exists)
+                    if (typeof window.getTelegramUsername === 'function') {
+                        try { window.getTelegramUsername('LoginManager', 'OnUsernameReceived'); } catch (e) { }
+                    }
                 }).catch(err => {
-                    console.error("❌ Unity failed to load:", err);
+                    console.error("Unity create failed:", err);
                     if (loadingElement) {
-                        loadingElement.innerHTML = "Failed to load game. Please refresh.";
+                        loadingElement.innerHTML = "Failed to load. Open console for details.";
                         loadingElement.style.color = "red";
                     }
                 });
             };
-
             script.onerror = (err) => {
-                console.error("❌ Failed to load Unity loader:", err);
+                console.error("Failed loading Unity loader:", err);
                 if (loadingElement) {
-                    loadingElement.innerHTML = "Failed to load game. Please refresh.";
+                    loadingElement.innerHTML = "Failed to load. Refresh the page.";
                     loadingElement.style.color = "red";
                 }
             };
-
             document.body.appendChild(script);
         });
     </script>
