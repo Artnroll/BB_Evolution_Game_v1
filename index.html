@@ -8,8 +8,8 @@
 
     <!-- TELEGRAM WEBAPP SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- ADSGRAM SDK - ADD ASYNC LOADING -->
-    <script src="https://sad.adsgram.ai/js/sad.min.js" async></script>
+    <!-- ADSGRAM SDK - LOAD SYNCHRONOUSLY FIRST -->
+    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
     <style>
         html, body {
@@ -39,16 +39,52 @@
             text-align: center;
             z-index: 10000;
         }
+
+        /* Add AdsGram status indicator */
+        #adsgram-status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            z-index: 10001;
+        }
     </style>
 </head>
 <body>
     <canvas id="unity-canvas" tabindex="-1"></canvas>
     <div id="loading">Loading...</div>
+    <div id="adsgram-status">Checking AdsGram...</div>
 
     <!-- PlayDeck Bridge -->
     <script src="playdeckBridge.js"></script>
 
     <script>
+        // Check AdsGram immediately when page loads
+        console.log("🔍 Initial AdsGram check:", {
+            adsGramExists: !!window.AdsGram,
+            telegramExists: !!window.Telegram,
+            inTelegram: !!(window.Telegram && window.Telegram.WebApp)
+        });
+
+        // Update AdsGram status
+        function updateAdsGramStatus() {
+            const statusElement = document.getElementById('adsgram-status');
+            if (statusElement) {
+                if (window.AdsGram) {
+                    statusElement.innerHTML = `✅ AdsGram Loaded<br>Methods: ${Object.keys(window.AdsGram).join(', ')}`;
+                    statusElement.style.background = 'rgba(0,255,0,0.8)';
+                } else {
+                    statusElement.innerHTML = `❌ AdsGram Not Loaded`;
+                    statusElement.style.background = 'rgba(255,0,0,0.8)';
+                }
+            }
+        }
+
         // Wait for DOM to load
         window.addEventListener('DOMContentLoaded', function () {
             const canvas = document.querySelector("#unity-canvas");
@@ -56,9 +92,18 @@
             const buildUrl = "Build";
             const loaderUrl = buildUrl + "/WebglBuild.loader.js";
 
-            console.log("🔧 DOM loaded, checking Telegram and AdsGram...");
+            console.log("🔧 DOM loaded, checking dependencies...");
             console.log("Telegram available:", !!window.Telegram);
             console.log("AdsGram available:", !!window.AdsGram);
+
+            // Update AdsGram status
+            updateAdsGramStatus();
+
+            // Try to load AdsGram again if not available
+            if (!window.AdsGram && window.Telegram && window.Telegram.WebApp) {
+                console.log("🔄 AdsGram not loaded, attempting to load manually...");
+                loadAdsGramManually();
+            }
 
             if (window.Telegram) {
                 console.log("Telegram.WebApp:", window.Telegram.WebApp);
@@ -116,6 +161,9 @@
                     window.unityInstance = unityInstance;
                     hideLoading();
 
+                    // Final AdsGram check
+                    updateAdsGramStatus();
+
                     // FORCE SEND TELEGRAM USERNAME WHEN UNITY LOADS
                     console.log("🔄 Force-sending Telegram username to Unity...");
                     if (window.getTelegramUsername) {
@@ -141,6 +189,40 @@
 
             document.body.appendChild(script);
         });
+
+        // Function to manually load AdsGram
+        function loadAdsGramManually() {
+            console.log("🔄 Attempting to load AdsGram manually...");
+
+            const script = document.createElement('script');
+            script.src = 'https://sad.adsgram.ai/js/sad.min.js';
+            script.onload = function () {
+                console.log("✅ AdsGram manually loaded successfully!");
+                console.log("AdsGram object:", window.AdsGram);
+                console.log("Available methods:", Object.keys(window.AdsGram));
+                updateAdsGramStatus();
+            };
+            script.onerror = function () {
+                console.error("❌ Failed to load AdsGram manually");
+                updateAdsGramStatus();
+            };
+            document.head.appendChild(script);
+        }
+
+        // Try multiple times to load AdsGram
+        setTimeout(() => {
+            if (!window.AdsGram && window.Telegram && window.Telegram.WebApp) {
+                console.log("🔄 Retry 1: Loading AdsGram...");
+                loadAdsGramManually();
+            }
+        }, 2000);
+
+        setTimeout(() => {
+            if (!window.AdsGram && window.Telegram && window.Telegram.WebApp) {
+                console.log("🔄 Retry 2: Loading AdsGram...");
+                loadAdsGramManually();
+            }
+        }, 5000);
     </script>
 </body>
 </html>
