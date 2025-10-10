@@ -6,7 +6,7 @@
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
 
-    <!-- Telegram WebApp SDK -->
+    <!-- TELEGRAM WEBAPP SDK - ADD THIS -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- CORRECT AdsGram SDK from documentation -->
     <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
@@ -37,6 +37,7 @@
             color: white;
             font-family: Arial, sans-serif;
             text-align: center;
+            z-index: 10000;
         }
     </style>
 </head>
@@ -55,12 +56,11 @@
             const buildUrl = "Build";
             const loaderUrl = buildUrl + "/WebglBuild.loader.js";
 
-            console.log("Checking Telegram WebApp...");
-            if (window.Telegram && window.Telegram.WebApp) {
-                console.log("Telegram WebApp detected!");
-                console.log("User data:", window.Telegram.WebApp.initDataUnsafe?.user);
-            } else {
-                console.log("Not in Telegram WebApp");
+            console.log("🔧 DOM loaded, checking Telegram...");
+            console.log("Telegram available:", !!window.Telegram);
+            if (window.Telegram) {
+                console.log("Telegram.WebApp:", window.Telegram.WebApp);
+                console.log("Telegram user:", window.Telegram.WebApp?.initDataUnsafe?.user);
             }
 
             const hideLoading = () => {
@@ -89,11 +89,14 @@
                         if (loadingElement) {
                             loadingElement.innerHTML = `Loading... ${progress}%`;
                         }
+                        if (window.playDeckBridge?.SetLoading) {
+                            window.playDeckBridge.SetLoading(progress);
+                        }
                     }
                 }
             };
 
-            console.log("Starting Unity WebGL build...");
+            console.log("🚀 Starting Unity WebGL build...");
 
             const script = document.createElement("script");
             script.src = loaderUrl;
@@ -105,27 +108,24 @@
                     if (loadingElement) {
                         loadingElement.innerHTML = `Loading... ${progressPercent}%`;
                     }
+
+                    if (window.playDeckBridge?.SetLoading) {
+                        window.playDeckBridge.SetLoading(progressPercent);
+                    }
                 }).then((unityInstance) => {
                     console.log("✅ Unity loaded successfully");
                     window.unityInstance = unityInstance;
                     hideLoading();
 
-                    // AUTO-SEND TELEGRAM USERNAME IF AVAILABLE
-                    if (window.Telegram && window.Telegram.WebApp) {
-                        const user = window.Telegram.WebApp.initDataUnsafe?.user;
-                        if (user) {
-                            let username = "";
-                            if (user.username) {
-                                username = "@" + user.username;
-                            } else if (user.first_name) {
-                                username = user.first_name;
-                            } else if (user.id) {
-                                username = "User_" + user.id;
-                            }
+                    // FORCE SEND TELEGRAM USERNAME WHEN UNITY LOADS
+                    console.log("🔄 Force-sending Telegram username to Unity...");
+                    if (window.getTelegramUsername) {
+                        window.getTelegramUsername('LoginManager', 'OnUsernameReceived');
+                    }
 
-                            console.log("Auto-sending Telegram username:", username);
-                            unityInstance.SendMessage('LoginManager', 'OnUsernameReceived', username);
-                        }
+                    // Initialize bridge with Unity instance
+                    if (window.playDeckBridge?.init) {
+                        window.playDeckBridge.init(unityInstance);
                     }
 
                 }).catch(err => {

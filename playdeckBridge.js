@@ -1,8 +1,40 @@
-﻿// PlayDeck Bridge - MINIMAL WORKING VERSION
+﻿// PlayDeck Bridge - MAXIMUM DEBUGGING VERSION
 (function () {
     'use strict';
 
-    console.log("Initializing PlayDeck Bridge...");
+    console.log("🔧 Initializing PlayDeck Bridge...");
+
+    // Create debug panel
+    const debugPanel = document.createElement('div');
+    debugPanel.style.cssText = `
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        background: rgba(0,0,0,0.9);
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        font-family: monospace;
+        font-size: 12px;
+        max-width: 400px;
+        max-height: 500px;
+        overflow-y: auto;
+        z-index: 9999;
+        border: 2px solid red;
+    `;
+    debugPanel.innerHTML = '<h3 style="margin:0;color:yellow;">TELEGRAM DEBUG</h3><div id="debug-content"></div>';
+    document.body.appendChild(debugPanel);
+
+    function debugLog(message) {
+        console.log("🔍 " + message);
+        const content = document.getElementById('debug-content');
+        if (content) {
+            content.innerHTML += `<div style="margin:2px 0;">${message}</div>`;
+            content.scrollTop = content.scrollHeight;
+        }
+    }
+
+    debugLog("Bridge loading...");
 
     // Simple global functions that won't lose scope
     window.PlayDeck_SetLoading = function (progress) {
@@ -87,46 +119,96 @@
         });
     };
 
-    // TELEGRAM USERNAME GRAB - ADD THIS FUNCTION
+    // TELEGRAM USERNAME GRAB - WITH MAX DEBUGGING
     window.getTelegramUsername = function (objectName, methodName) {
-        console.log("Getting Telegram username for:", objectName, methodName);
+        debugLog("=== getTelegramUsername CALLED ===");
+        debugLog("Object: " + objectName + ", Method: " + methodName);
+        
+        debugLog("1. Checking if Telegram exists...");
+        debugLog("window.Telegram: " + (window.Telegram ? "✅ EXISTS" : "❌ MISSING"));
+        
+        if (window.Telegram) {
+            debugLog("2. Checking Telegram.WebApp...");
+            debugLog("Telegram.WebApp: " + (window.Telegram.WebApp ? "✅ EXISTS" : "❌ MISSING"));
+            
+            if (window.Telegram.WebApp) {
+                debugLog("3. Checking initDataUnsafe...");
+                debugLog("initDataUnsafe: " + (window.Telegram.WebApp.initDataUnsafe ? "✅ EXISTS" : "❌ MISSING"));
+                
+                if (window.Telegram.WebApp.initDataUnsafe) {
+                    debugLog("4. Checking user data...");
+                    debugLog("user: " + (window.Telegram.WebApp.initDataUnsafe.user ? "✅ EXISTS" : "❌ MISSING"));
+                    
+                    const user = window.Telegram.WebApp.initDataUnsafe.user;
+                    if (user) {
+                        debugLog("=== USER DATA FOUND ===");
+                        debugLog("User ID: " + user.id);
+                        debugLog("Username: " + user.username);
+                        debugLog("First Name: " + user.first_name);
+                        debugLog("Last Name: " + user.last_name);
+                        
+                        let username = "";
+                        if (user.username) {
+                            username = "@" + user.username;
+                            debugLog("✅ Using username: " + username);
+                        } else if (user.first_name) {
+                            username = user.first_name;
+                            debugLog("✅ Using first_name: " + username);
+                        } else {
+                            username = "User_" + user.id;
+                            debugLog("✅ Using user ID: " + username);
+                        }
+                        
+                        debugLog("5. Checking Unity instance...");
+                        debugLog("unityInstance: " + (window.unityInstance ? "✅ EXISTS" : "❌ MISSING"));
+                        debugLog("SendMessage: " + (window.unityInstance && window.unityInstance.SendMessage ? "✅ EXISTS" : "❌ MISSING"));
 
-        if (window.Telegram && window.Telegram.WebApp) {
-            console.log("Telegram WebApp found!");
-
-            // Initialize Telegram
-            window.Telegram.WebApp.ready();
-            window.Telegram.WebApp.expand();
-
-            const user = window.Telegram.WebApp.initDataUnsafe.user;
-            console.log("Telegram user:", user);
-
-            if (user) {
-                let username = "";
-                if (user.username) {
-                    username = "@" + user.username;
-                } else if (user.first_name) {
-                    username = user.first_name;
-                } else if (user.id) {
-                    username = "User_" + user.id;
-                }
-
-                console.log("Telegram username:", username);
-
-                if (window.unityInstance && window.unityInstance.SendMessage) {
-                    window.unityInstance.SendMessage(objectName, methodName, username);
-                    console.log("Sent username to Unity!");
-                    return true;
+                        if (window.unityInstance && window.unityInstance.SendMessage) {
+                            debugLog("🚀 SENDING TO UNITY: " + username);
+                            window.unityInstance.SendMessage(objectName, methodName, username);
+                            debugLog("✅ SUCCESS: Username sent to Unity!");
+                            return true;
+                        } else {
+                            debugLog("❌ FAILED: Unity instance not ready");
+                        }
+                    } else {
+                        debugLog("❌ FAILED: No user data in Telegram");
+                    }
+                } else {
+                    debugLog("❌ FAILED: No initDataUnsafe in Telegram");
                 }
             } else {
-                console.log("No Telegram user data found");
+                debugLog("❌ FAILED: No WebApp in Telegram");
             }
         } else {
-            console.log("Telegram WebApp not available");
+            debugLog("❌ FAILED: Telegram not available");
         }
+        
+        debugLog("=== getTelegramUsername FAILED ===");
         return false;
     };
 
-    console.log("PlayDeck Bridge ready with Telegram support");
+    // Auto-detect and send Telegram username when possible
+    function autoDetectTelegram() {
+        debugLog("=== AUTO DETECT TELEGRAM ===");
+        
+        if (window.Telegram && window.Telegram.WebApp) {
+            debugLog("🔄 Auto-detected Telegram, sending username...");
+            setTimeout(() => {
+                if (window.getTelegramUsername) {
+                    window.getTelegramUsername('LoginManager', 'OnUsernameReceived');
+                }
+            }, 1000);
+        } else {
+            debugLog("⏹️ Telegram not available for auto-detection");
+        }
+    }
+
+    // Initialize auto-detection
+    setTimeout(autoDetectTelegram, 500);
+    setTimeout(autoDetectTelegram, 2000);
+    setTimeout(autoDetectTelegram, 5000);
+
+    debugLog("✅ PlayDeck Bridge ready with MAX DEBUG");
 
 })();
