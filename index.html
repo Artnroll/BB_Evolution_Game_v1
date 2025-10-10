@@ -6,7 +6,9 @@
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
 
-    <!-- ✅ CORRECT AdsGram SDK -->
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- CORRECT AdsGram SDK from documentation -->
     <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
     <style>
@@ -37,34 +39,28 @@
             text-align: center;
         }
     </style>
-
-    <!-- ✅ Telegram Initialization -->
-    <script>
-        if (window.Telegram && window.Telegram.WebApp) {
-            window.Telegram.WebApp.ready();
-            console.log("Telegram WebApp initialized");
-        } else {
-            console.warn("Telegram WebApp not found - running in browser simulation");
-        }
-    </script>
 </head>
 <body>
     <canvas id="unity-canvas" tabindex="-1"></canvas>
     <div id="loading">Loading...</div>
 
-    <!-- ✅ PlayDeck Bridge -->
+    <!-- PlayDeck Bridge -->
     <script src="playdeckBridge.js"></script>
 
     <script>
+        // Wait for DOM to load
         window.addEventListener('DOMContentLoaded', function () {
             const canvas = document.querySelector("#unity-canvas");
             const loadingElement = document.querySelector("#loading");
             const buildUrl = "Build";
             const loaderUrl = buildUrl + "/WebglBuild.loader.js";
 
-            console.log("AdsGram SDK available:", typeof window.AdsGram !== 'undefined');
-            if (window.AdsGram) {
-                console.log("AdsGram methods:", Object.keys(window.AdsGram));
+            console.log("Checking Telegram WebApp...");
+            if (window.Telegram && window.Telegram.WebApp) {
+                console.log("Telegram WebApp detected!");
+                console.log("User data:", window.Telegram.WebApp.initDataUnsafe?.user);
+            } else {
+                console.log("Not in Telegram WebApp");
             }
 
             const hideLoading = () => {
@@ -93,9 +89,6 @@
                         if (loadingElement) {
                             loadingElement.innerHTML = `Loading... ${progress}%`;
                         }
-                        if (window.playDeckBridge?.SetLoading) {
-                            window.playDeckBridge.SetLoading(progress);
-                        }
                     }
                 }
             };
@@ -112,18 +105,29 @@
                     if (loadingElement) {
                         loadingElement.innerHTML = `Loading... ${progressPercent}%`;
                     }
-
-                    if (window.playDeckBridge?.SetLoading) {
-                        window.playDeckBridge.SetLoading(progressPercent);
-                    }
                 }).then((unityInstance) => {
                     console.log("✅ Unity loaded successfully");
                     window.unityInstance = unityInstance;
                     hideLoading();
 
-                    if (window.playDeckBridge?.init) {
-                        window.playDeckBridge.init(unityInstance);
+                    // AUTO-SEND TELEGRAM USERNAME IF AVAILABLE
+                    if (window.Telegram && window.Telegram.WebApp) {
+                        const user = window.Telegram.WebApp.initDataUnsafe?.user;
+                        if (user) {
+                            let username = "";
+                            if (user.username) {
+                                username = "@" + user.username;
+                            } else if (user.first_name) {
+                                username = user.first_name;
+                            } else if (user.id) {
+                                username = "User_" + user.id;
+                            }
+
+                            console.log("Auto-sending Telegram username:", username);
+                            unityInstance.SendMessage('LoginManager', 'OnUsernameReceived', username);
+                        }
                     }
+
                 }).catch(err => {
                     console.error("❌ Unity failed to load:", err);
                     if (loadingElement) {

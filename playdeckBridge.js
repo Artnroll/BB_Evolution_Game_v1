@@ -1,36 +1,10 @@
-﻿// PlayDeck Bridge - FULL VERSION WITH TELEGRAM LOGIN FIX
+﻿// PlayDeck Bridge - MINIMAL WORKING VERSION
 (function () {
     'use strict';
 
     console.log("Initializing PlayDeck Bridge...");
 
-    // ✅ Telegram Login Bridge
-    window.getTelegramUsername = function (unityObjectName, callbackMethod) {
-        try {
-            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-                const user = window.Telegram.WebApp.initDataUnsafe.user;
-                const username = user.username || user.first_name || `Player_${user.id}`;
-                console.log("[PlayDeckBridge] Telegram username:", username);
-                if (window.unityInstance && window.unityInstance.SendMessage) {
-                    window.unityInstance.SendMessage(unityObjectName, callbackMethod, username);
-                }
-                return username;
-            } else {
-                console.warn("[PlayDeckBridge] Telegram WebApp not ready, sending Guest");
-                if (window.unityInstance && window.unityInstance.SendMessage) {
-                    window.unityInstance.SendMessage(unityObjectName, callbackMethod, "Guest_" + Date.now());
-                }
-                return null;
-            }
-        } catch (err) {
-            console.error("[PlayDeckBridge] Error getting Telegram username:", err);
-            if (window.unityInstance && window.unityInstance.SendMessage) {
-                window.unityInstance.SendMessage(unityObjectName, callbackMethod, "Guest_" + Date.now());
-            }
-        }
-    };
-
-    // ✅ PlayDeck Functions
+    // Simple global functions that won't lose scope
     window.PlayDeck_SetLoading = function (progress) {
         console.log("SetLoading:", progress);
     };
@@ -64,9 +38,12 @@
                 console.log("SIMULATOR: Showing fake rewarded ad");
                 setTimeout(() => {
                     console.log("SIMULATOR: Ad completed successfully");
+
+                    // Notify Unity directly
                     if (window.unityInstance && window.unityInstance.SendMessage) {
                         window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "true");
                     }
+
                     resolve(true);
                 }, 2000);
                 return;
@@ -83,6 +60,7 @@
             }
 
             console.log("Showing real rewarded ad");
+
             window.AdsGram.showRewarded('15876', {
                 onReward: (reward) => {
                     console.log("Rewarded ad completed successfully");
@@ -109,5 +87,46 @@
         });
     };
 
-    console.log("PlayDeck Bridge ready");
+    // TELEGRAM USERNAME GRAB - ADD THIS FUNCTION
+    window.getTelegramUsername = function (objectName, methodName) {
+        console.log("Getting Telegram username for:", objectName, methodName);
+
+        if (window.Telegram && window.Telegram.WebApp) {
+            console.log("Telegram WebApp found!");
+
+            // Initialize Telegram
+            window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand();
+
+            const user = window.Telegram.WebApp.initDataUnsafe.user;
+            console.log("Telegram user:", user);
+
+            if (user) {
+                let username = "";
+                if (user.username) {
+                    username = "@" + user.username;
+                } else if (user.first_name) {
+                    username = user.first_name;
+                } else if (user.id) {
+                    username = "User_" + user.id;
+                }
+
+                console.log("Telegram username:", username);
+
+                if (window.unityInstance && window.unityInstance.SendMessage) {
+                    window.unityInstance.SendMessage(objectName, methodName, username);
+                    console.log("Sent username to Unity!");
+                    return true;
+                }
+            } else {
+                console.log("No Telegram user data found");
+            }
+        } else {
+            console.log("Telegram WebApp not available");
+        }
+        return false;
+    };
+
+    console.log("PlayDeck Bridge ready with Telegram support");
+
 })();
