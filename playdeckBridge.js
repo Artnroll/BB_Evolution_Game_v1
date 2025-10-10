@@ -1,79 +1,113 @@
-﻿// PlayDeck Bridge - SIMPLE TELEGRAM DETECTION
+﻿// PlayDeck Bridge - FULL VERSION WITH TELEGRAM LOGIN FIX
 (function () {
     'use strict';
 
     console.log("Initializing PlayDeck Bridge...");
 
-    let unityInstance = null;
-
-    window.playDeckBridge = {
-        init: function (instance) {
-            unityInstance = instance;
-            console.log("PlayDeck Bridge initialized");
-            this.detectTelegram();
-        },
-
-        detectTelegram: function () {
-            console.log("Detecting Telegram...");
-
-            if (this.isTelegramWebApp()) {
-                console.log("✓ Telegram WebApp detected!");
-                this.getTelegramUsername();
+    // ✅ Telegram Login Bridge
+    window.getTelegramUsername = function (unityObjectName, callbackMethod) {
+        try {
+            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+                const user = window.Telegram.WebApp.initDataUnsafe.user;
+                const username = user.username || user.first_name || `Player_${user.id}`;
+                console.log("[PlayDeckBridge] Telegram username:", username);
+                if (window.unityInstance && window.unityInstance.SendMessage) {
+                    window.unityInstance.SendMessage(unityObjectName, callbackMethod, username);
+                }
+                return username;
             } else {
-                console.log("✗ Not in Telegram WebApp");
+                console.warn("[PlayDeckBridge] Telegram WebApp not ready, sending Guest");
+                if (window.unityInstance && window.unityInstance.SendMessage) {
+                    window.unityInstance.SendMessage(unityObjectName, callbackMethod, "Guest_" + Date.now());
+                }
+                return null;
             }
-        },
-
-        isTelegramWebApp: function () {
-            const hasTelegram = !!(window.Telegram && window.Telegram.WebApp);
-            console.log("Telegram available:", hasTelegram);
-            return hasTelegram;
-        },
-
-        getTelegramUsername: function () {
-            console.log("Getting Telegram username...");
-
-            try {
-                const webApp = window.Telegram.WebApp;
-                webApp.ready();
-                webApp.expand();
-
-                const user = webApp.initDataUnsafe?.user;
-                console.log("Telegram user data:", user);
-
-                if (user) {
-                    let username = null;
-
-                    if (user.username) {
-                        username = "@" + user.username;
-                    } else if (user.first_name) {
-                        username = user.first_name;
-                    } else if (user.id) {
-                        username = "User_" + user.id;
-                    }
-
-                    if (username && unityInstance) {
-                        console.log("Sending Telegram username to Unity:", username);
-                        unityInstance.SendMessage('LoginManager', 'OnTelegramUsernameReceived', username);
-                        return;
-                    }
-                }
-
-                // Fallback
-                console.log("No Telegram user data, using fallback");
-                if (unityInstance) {
-                    unityInstance.SendMessage('LoginManager', 'OnTelegramUsernameReceived', 'TelegramUser');
-                }
-
-            } catch (error) {
-                console.error("Error getting Telegram username:", error);
-                if (unityInstance) {
-                    unityInstance.SendMessage('LoginManager', 'OnTelegramUsernameReceived', 'TelegramError');
-                }
+        } catch (err) {
+            console.error("[PlayDeckBridge] Error getting Telegram username:", err);
+            if (window.unityInstance && window.unityInstance.SendMessage) {
+                window.unityInstance.SendMessage(unityObjectName, callbackMethod, "Guest_" + Date.now());
             }
         }
     };
 
-    console.log("PlayDeck Bridge ready");
+    // ✅ PlayDeck Functions
+    window.PlayDeck_SetLoading = function (progress) {
+        console.log("SetLoading:", progress);
+    };
 
+    window.PlayDeck_GameEnd = function () {
+        console.log("GameEnd called");
+    };
+
+    window.PlayDeck_Analytics = function (eventName, payload) {
+        console.log("Analytics:", eventName, payload);
+    };
+
+    window.PlayDeck_AreAdsAvailable = function () {
+        const isTelegram = !!(window.Telegram && window.Telegram.WebApp);
+        const available = isTelegram ? !!window.AdsGram : true;
+        console.log("AreAdsAvailable:", available);
+        return available;
+    };
+
+    window.PlayDeck_PreloadAds = function () {
+        console.log("PreloadAds called");
+    };
+
+    window.PlayDeck_ShowRewardedAd = function () {
+        console.log("ShowRewardedAd called");
+
+        return new Promise((resolve, reject) => {
+            const isTelegram = !!(window.Telegram && window.Telegram.WebApp);
+
+            if (!isTelegram) {
+                console.log("SIMULATOR: Showing fake rewarded ad");
+                setTimeout(() => {
+                    console.log("SIMULATOR: Ad completed successfully");
+                    if (window.unityInstance && window.unityInstance.SendMessage) {
+                        window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "true");
+                    }
+                    resolve(true);
+                }, 2000);
+                return;
+            }
+
+            // Real AdsGram implementation
+            if (!window.AdsGram) {
+                console.error("AdsGram not available");
+                if (window.unityInstance && window.unityInstance.SendMessage) {
+                    window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
+                }
+                reject(false);
+                return;
+            }
+
+            console.log("Showing real rewarded ad");
+            window.AdsGram.showRewarded('15876', {
+                onReward: (reward) => {
+                    console.log("Rewarded ad completed successfully");
+                    if (window.unityInstance && window.unityInstance.SendMessage) {
+                        window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "true");
+                    }
+                    resolve(true);
+                },
+                onClose: () => {
+                    console.log("Rewarded ad closed without reward");
+                    if (window.unityInstance && window.unityInstance.SendMessage) {
+                        window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
+                    }
+                    reject(false);
+                },
+                onError: (error) => {
+                    console.error("Rewarded ad error:", error);
+                    if (window.unityInstance && window.unityInstance.SendMessage) {
+                        window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
+                    }
+                    reject(false);
+                }
+            });
+        });
+    };
+
+    console.log("PlayDeck Bridge ready");
 })();

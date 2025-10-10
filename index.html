@@ -6,10 +6,7 @@
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
 
-    <!-- Telegram WebApp SDK -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-    <!-- AdsGram SDK -->
+    <!-- ✅ CORRECT AdsGram SDK -->
     <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
     <style>
@@ -38,72 +35,36 @@
             color: white;
             font-family: Arial, sans-serif;
             text-align: center;
-            z-index: 1000;
-        }
-
-        #debug-info {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            z-index: 1000;
-            max-width: 300px;
         }
     </style>
+
+    <!-- ✅ Telegram Initialization -->
+    <script>
+        if (window.Telegram && window.Telegram.WebApp) {
+            window.Telegram.WebApp.ready();
+            console.log("Telegram WebApp initialized");
+        } else {
+            console.warn("Telegram WebApp not found - running in browser simulation");
+        }
+    </script>
 </head>
 <body>
     <canvas id="unity-canvas" tabindex="-1"></canvas>
     <div id="loading">Loading...</div>
-    <div id="debug-info" style="display: none;">
-        <div id="telegram-status">Checking Telegram...</div>
-        <div id="username-status">Username: Unknown</div>
-    </div>
 
-    <!-- PlayDeck Bridge -->
+    <!-- ✅ PlayDeck Bridge -->
     <script src="playdeckBridge.js"></script>
 
     <script>
-        // Debug info
-        function updateDebugInfo() {
-            const debugInfo = document.getElementById('debug-info');
-            const telegramStatus = document.getElementById('telegram-status');
-            const usernameStatus = document.getElementById('username-status');
-
-            const isTelegram = !!(window.Telegram && window.Telegram.WebApp);
-            telegramStatus.textContent = `Telegram: ${isTelegram ? 'Yes' : 'No'}`;
-
-            if (isTelegram) {
-                const user = window.Telegram.WebApp.initDataUnsafe?.user;
-                if (user) {
-                    usernameStatus.textContent = `User: ${user.username ? '@' + user.username : user.first_name || 'Unknown'}`;
-                } else {
-                    usernameStatus.textContent = 'User: Not available';
-                }
-            } else {
-                usernameStatus.textContent = 'User: Not in Telegram';
-            }
-
-            debugInfo.style.display = 'block';
-        }
-
-        // Wait for DOM to load
         window.addEventListener('DOMContentLoaded', function () {
             const canvas = document.querySelector("#unity-canvas");
             const loadingElement = document.querySelector("#loading");
             const buildUrl = "Build";
             const loaderUrl = buildUrl + "/WebglBuild.loader.js";
 
-            console.log("Initializing WebGL build...");
-            console.log("Telegram WebApp available:", !!(window.Telegram && window.Telegram.WebApp));
-
-            if (window.Telegram && window.Telegram.WebApp) {
-                console.log("Telegram WebApp initData:", window.Telegram.WebApp.initDataUnsafe);
-                console.log("Telegram user:", window.Telegram.WebApp.initDataUnsafe?.user);
+            console.log("AdsGram SDK available:", typeof window.AdsGram !== 'undefined');
+            if (window.AdsGram) {
+                console.log("AdsGram methods:", Object.keys(window.AdsGram));
             }
 
             const hideLoading = () => {
@@ -160,14 +121,9 @@
                     window.unityInstance = unityInstance;
                     hideLoading();
 
-                    // Show debug info
-                    updateDebugInfo();
-
-                    // Initialize bridge with Unity instance
                     if (window.playDeckBridge?.init) {
                         window.playDeckBridge.init(unityInstance);
                     }
-
                 }).catch(err => {
                     console.error("❌ Unity failed to load:", err);
                     if (loadingElement) {
