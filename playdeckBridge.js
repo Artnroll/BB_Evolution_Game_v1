@@ -1,4 +1,4 @@
-﻿// PlayDeck Bridge - MAXIMUM DEBUGGING VERSION
+﻿// PlayDeck Bridge - ENHANCED ADSGRAM VERSION
 (function () {
     'use strict';
 
@@ -52,28 +52,40 @@
     window.PlayDeck_AreAdsAvailable = function () {
         const isTelegram = !!(window.Telegram && window.Telegram.WebApp);
         const available = isTelegram ? !!window.AdsGram : true;
-        console.log("AreAdsAvailable:", available);
+        debugLog(`Ads Available Check - Telegram: ${isTelegram}, AdsGram: ${!!window.AdsGram}, Available: ${available}`);
         return available;
     };
 
     window.PlayDeck_PreloadAds = function () {
-        console.log("PreloadAds called");
+        debugLog("PreloadAds called");
+        // AdsGram doesn't need preloading, but we can check availability
+        if (window.Telegram && window.Telegram.WebApp && window.AdsGram) {
+            debugLog("✅ AdsGram is available in Telegram");
+        } else if (!window.Telegram) {
+            debugLog("ℹ️ Not in Telegram - using simulator ads");
+        } else {
+            debugLog("❌ AdsGram not available");
+        }
     };
 
     window.PlayDeck_ShowRewardedAd = function () {
-        console.log("ShowRewardedAd called");
+        debugLog("=== ShowRewardedAd CALLED ===");
 
         return new Promise((resolve, reject) => {
             const isTelegram = !!(window.Telegram && window.Telegram.WebApp);
+            debugLog(`Environment - In Telegram: ${isTelegram}`);
 
             if (!isTelegram) {
-                console.log("SIMULATOR: Showing fake rewarded ad");
+                debugLog("SIMULATOR: Showing fake rewarded ad (2s delay)");
                 setTimeout(() => {
-                    console.log("SIMULATOR: Ad completed successfully");
+                    debugLog("SIMULATOR: Ad completed successfully");
 
                     // Notify Unity directly
                     if (window.unityInstance && window.unityInstance.SendMessage) {
                         window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "true");
+                        debugLog("✅ Sent success to Unity AdsManager");
+                    } else {
+                        debugLog("❌ Unity instance not available to send result");
                     }
 
                     resolve(true);
@@ -82,44 +94,61 @@
             }
 
             // Real AdsGram implementation
+            debugLog("Checking AdsGram availability...");
             if (!window.AdsGram) {
-                console.error("AdsGram not available");
+                debugLog("❌ AdsGram not available");
                 if (window.unityInstance && window.unityInstance.SendMessage) {
                     window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
+                    debugLog("Sent failure to Unity AdsManager");
                 }
                 reject(false);
                 return;
             }
 
-            console.log("Showing real rewarded ad");
+            debugLog("✅ AdsGram available, showing rewarded ad...");
 
-            window.AdsGram.showRewarded('15876', {
-                onReward: (reward) => {
-                    console.log("Rewarded ad completed successfully");
-                    if (window.unityInstance && window.unityInstance.SendMessage) {
-                        window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "true");
+            const adBlockId = '15960'; // ← CHANGE THIS TO YOUR AD BLOCK ID
+            debugLog(`Using Ad Block ID: ${adBlockId}`);
+
+            try {
+                window.AdsGram.showRewarded(adBlockId, {
+                    onReward: (reward) => {
+                        debugLog("✅ Rewarded ad completed successfully - user earned reward");
+                        if (window.unityInstance && window.unityInstance.SendMessage) {
+                            window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "true");
+                            debugLog("Sent success to Unity AdsManager");
+                        }
+                        resolve(true);
+                    },
+                    onClose: () => {
+                        debugLog("❌ Rewarded ad closed without reward");
+                        if (window.unityInstance && window.unityInstance.SendMessage) {
+                            window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
+                            debugLog("Sent failure to Unity AdsManager");
+                        }
+                        reject(false);
+                    },
+                    onError: (error) => {
+                        debugLog(`❌ Rewarded ad error: ${error}`);
+                        if (window.unityInstance && window.unityInstance.SendMessage) {
+                            window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
+                            debugLog("Sent failure to Unity AdsManager");
+                        }
+                        reject(false);
                     }
-                    resolve(true);
-                },
-                onClose: () => {
-                    console.log("Rewarded ad closed without reward");
-                    if (window.unityInstance && window.unityInstance.SendMessage) {
-                        window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
-                    }
-                    reject(false);
-                },
-                onError: (error) => {
-                    console.error("Rewarded ad error:", error);
-                    if (window.unityInstance && window.unityInstance.SendMessage) {
-                        window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
-                    }
-                    reject(false);
+                });
+                debugLog("✅ AdsGram.showRewarded called successfully");
+            } catch (error) {
+                debugLog(`❌ Exception in AdsGram.showRewarded: ${error}`);
+                if (window.unityInstance && window.unityInstance.SendMessage) {
+                    window.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false");
                 }
-            });
+                reject(false);
+            }
         });
     };
 
-    // TELEGRAM USERNAME GRAB - WITH RETRY LOGIC
+    // TELEGRAM USERNAME GRAB - WITH RETRY LOGIC (UNCHANGED)
     window.getTelegramUsername = function (objectName, methodName) {
         debugLog("=== getTelegramUsername CALLED ===");
 
@@ -162,13 +191,13 @@
                 clearInterval(retryInterval);
                 debugLog("❌ Max retries reached, giving up");
             }
-        }, 1000); // Retry every second
+        }, 1000);
     };
 
     // Auto-detect and send Telegram username when possible
     function autoDetectTelegram() {
         debugLog("=== AUTO DETECT TELEGRAM ===");
-        
+
         if (window.Telegram && window.Telegram.WebApp) {
             debugLog("🔄 Auto-detected Telegram, sending username...");
             setTimeout(() => {
@@ -186,6 +215,6 @@
     setTimeout(autoDetectTelegram, 2000);
     setTimeout(autoDetectTelegram, 5000);
 
-    debugLog("✅ PlayDeck Bridge ready with MAX DEBUG");
+    debugLog("✅ PlayDeck Bridge ready with Enhanced AdsGram");
 
 })();
