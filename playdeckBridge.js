@@ -119,73 +119,50 @@
         });
     };
 
-    // TELEGRAM USERNAME GRAB - WITH MAX DEBUGGING
+    // TELEGRAM USERNAME GRAB - WITH RETRY LOGIC
     window.getTelegramUsername = function (objectName, methodName) {
         debugLog("=== getTelegramUsername CALLED ===");
-        debugLog("Object: " + objectName + ", Method: " + methodName);
-        
-        debugLog("1. Checking if Telegram exists...");
-        debugLog("window.Telegram: " + (window.Telegram ? "✅ EXISTS" : "❌ MISSING"));
-        
-        if (window.Telegram) {
-            debugLog("2. Checking Telegram.WebApp...");
-            debugLog("Telegram.WebApp: " + (window.Telegram.WebApp ? "✅ EXISTS" : "❌ MISSING"));
-            
-            if (window.Telegram.WebApp) {
-                debugLog("3. Checking initDataUnsafe...");
-                debugLog("initDataUnsafe: " + (window.Telegram.WebApp.initDataUnsafe ? "✅ EXISTS" : "❌ MISSING"));
-                
-                if (window.Telegram.WebApp.initDataUnsafe) {
-                    debugLog("4. Checking user data...");
-                    debugLog("user: " + (window.Telegram.WebApp.initDataUnsafe.user ? "✅ EXISTS" : "❌ MISSING"));
-                    
-                    const user = window.Telegram.WebApp.initDataUnsafe.user;
-                    if (user) {
-                        debugLog("=== USER DATA FOUND ===");
-                        debugLog("User ID: " + user.id);
-                        debugLog("Username: " + user.username);
-                        debugLog("First Name: " + user.first_name);
-                        debugLog("Last Name: " + user.last_name);
-                        
-                        let username = "";
-                        if (user.username) {
-                            username = "@" + user.username;
-                            debugLog("✅ Using username: " + username);
-                        } else if (user.first_name) {
-                            username = user.first_name;
-                            debugLog("✅ Using first_name: " + username);
-                        } else {
-                            username = "User_" + user.id;
-                            debugLog("✅ Using user ID: " + username);
-                        }
-                        
-                        debugLog("5. Checking Unity instance...");
-                        debugLog("unityInstance: " + (window.unityInstance ? "✅ EXISTS" : "❌ MISSING"));
-                        debugLog("SendMessage: " + (window.unityInstance && window.unityInstance.SendMessage ? "✅ EXISTS" : "❌ MISSING"));
 
-                        if (window.unityInstance && window.unityInstance.SendMessage) {
-                            debugLog("🚀 SENDING TO UNITY: " + username);
-                            window.unityInstance.SendMessage(objectName, methodName, username);
-                            debugLog("✅ SUCCESS: Username sent to Unity!");
-                            return true;
-                        } else {
-                            debugLog("❌ FAILED: Unity instance not ready");
-                        }
+        function sendUsername() {
+            if (window.Telegram && window.Telegram.WebApp) {
+                const user = window.Telegram.WebApp.initDataUnsafe.user;
+                if (user) {
+                    let username = user.username ? '@' + user.username : user.first_name;
+
+                    if (window.unityInstance && window.unityInstance.SendMessage) {
+                        debugLog("🚀 SENDING TO UNITY: " + username);
+                        window.unityInstance.SendMessage(objectName, methodName, username);
+                        debugLog("✅ SUCCESS: Username sent to Unity!");
+                        return true;
                     } else {
-                        debugLog("❌ FAILED: No user data in Telegram");
+                        debugLog("⏳ Unity not ready yet, will retry...");
+                        return false;
                     }
-                } else {
-                    debugLog("❌ FAILED: No initDataUnsafe in Telegram");
                 }
-            } else {
-                debugLog("❌ FAILED: No WebApp in Telegram");
             }
-        } else {
-            debugLog("❌ FAILED: Telegram not available");
+            return false;
         }
-        
-        debugLog("=== getTelegramUsername FAILED ===");
-        return false;
+
+        // Try immediately
+        if (sendUsername()) {
+            return;
+        }
+
+        // If not successful, set up retries
+        let retryCount = 0;
+        const maxRetries = 10;
+        const retryInterval = setInterval(() => {
+            retryCount++;
+            debugLog(`🔄 Retry ${retryCount}/${maxRetries}...`);
+
+            if (sendUsername()) {
+                clearInterval(retryInterval);
+                debugLog("✅ Retry successful!");
+            } else if (retryCount >= maxRetries) {
+                clearInterval(retryInterval);
+                debugLog("❌ Max retries reached, giving up");
+            }
+        }, 1000); // Retry every second
     };
 
     // Auto-detect and send Telegram username when possible
