@@ -6,10 +6,8 @@
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
 
-    <!-- TELEGRAM WEBAPP SDK (if you use it) -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-    <!-- AdsGram SDK (if you use it) -->
+    <!-- AdsGram SDK (common host). Keep this first so SDK can load early.
+         If AdsGram gives a different script URL for you, replace this URL with theirs. -->
     <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
     <style>
@@ -30,161 +28,130 @@
             background: black;
         }
 
-        /* On-screen debug console */
-        #onScreenConsole {
+        #loading {
             position: fixed;
-            bottom: 8px;
-            left: 8px;
-            width: calc(100% - 16px);
-            max-height: 35vh;
-            background: rgba(0,0,0,0.85);
-            color: #e6e6e6;
-            font-family: monospace;
-            font-size: 12px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            z-index: 10000;
+        }
+
+        #adsgram-status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
             padding: 8px;
             border-radius: 6px;
-            overflow-y: auto;
-            z-index: 999999;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
-            line-height: 1.2;
-        }
-
-            #onScreenConsole .line {
-                margin-bottom: 4px;
-                white-space: pre-wrap;
-                word-break: break-word;
-            }
-
-            #onScreenConsole .time {
-                color: #999;
-                margin-right: 6px;
-            }
-
-        #console-controls {
-            position: fixed;
-            top: 8px;
-            right: 8px;
-            z-index: 1000000;
-            display: flex;
-            gap: 6px;
-        }
-
-        .console-button {
-            background: rgba(255,255,255,0.06);
-            color: #fff;
-            border: 1px solid rgba(255,255,255,0.06);
-            padding: 6px 8px;
-            border-radius: 6px;
-            font-family: monospace;
+            font-family: Arial, sans-serif;
             font-size: 12px;
-            cursor: pointer;
+            z-index: 10001;
         }
     </style>
 </head>
 <body>
     <canvas id="unity-canvas" tabindex="-1"></canvas>
+    <div id="loading">Loading...</div>
+    <div id="adsgram-status">Checking AdsGram...</div>
 
-    <!-- Controls -->
-    <div id="console-controls">
-        <button id="toggleConsole" class="console-button">Toggle Console</button>
-        <button id="clearConsole" class="console-button">Clear</button>
-    </div>
-
-    <!-- On-screen console -->
-    <div id="onScreenConsole" aria-live="polite"></div>
-
-    <!-- PlayDeck/Ads Bridge -->
+    <!-- PlayDeck bridge (our unified bridge) -->
     <script src="playdeckBridge.js"></script>
 
     <script>
-        // Unity loader (unchanged core flow)
-        const canvas = document.querySelector("#unity-canvas");
-        const buildUrl = "Build";
-        const loaderUrl = buildUrl + "/WebglBuild.loader.js";
+        // wait DOMContentLoaded to create unity instance
+        window.addEventListener('DOMContentLoaded', function () {
+            const canvas = document.querySelector("#unity-canvas");
+            const loadingElement = document.querySelector("#loading");
+            const adsStatus = document.querySelector("#adsgram-status");
+            const buildUrl = "Build";
+            const loaderUrl = buildUrl + "/WebglBuild.loader.js";
 
-        const pixelRatioCap = /Mobi|Android|iPhone|iPad|iPod/.test(navigator.userAgent)
-            ? Math.min(window.devicePixelRatio, 1.5)
-            : window.devicePixelRatio;
-
-        const config = {
-            dataUrl: buildUrl + "/WebglBuild.data",
-            frameworkUrl: buildUrl + "/WebglBuild.framework.js",
-            codeUrl: buildUrl + "/WebglBuild.wasm",
-            streamingAssetsUrl: "StreamingAssets",
-            companyName: "Artnroll Games",
-            productName: "BitBullz Evolution",
-            productVersion: "0.4",
-            devicePixelRatio: pixelRatioCap,
-            showBanner: (msg, type) => {
-                // this is often called by Unity - forward to on-screen console too
-                if (window.appendDebug) window.appendDebug("[UNITY BANNER] " + String(type) + " " + String(msg));
-                console.log("banner", type, msg);
+            function setAdsStatus(text, color) {
+                if (!adsStatus) return;
+                adsStatus.innerHTML = text;
+                if (color) adsStatus.style.background = color;
             }
-        };
 
-        const script = document.createElement("script");
-        script.src = loaderUrl;
-        script.onload = () => {
-            createUnityInstance(canvas, config, (progress) => {
-                const p = Math.round(progress * 100);
-                if (window.appendDebug) window.appendDebug(`[LOADER] ${p}%`);
-                if (window.playDeckBridge?.SetLoading) {
-                    try { window.playDeckBridge.SetLoading(p); } catch (e) { window.console && window.console.warn(e); }
+            // quick AdsGram presence check (we'll have better checks inside playdeckBridge)
+            setAdsStatus("Checking AdsGram presence...", 'rgba(255,165,0,0.8)');
+            setTimeout(() => {
+                const present = !!(window.AdsGram || window.Adsgram || window.sad);
+                setAdsStatus(present ? "AdsGram script loaded (probable)" : "AdsGram not detected", present ? 'rgba(0,128,0,0.8)' : 'rgba(255,0,0,0.8)');
+            }, 800);
+
+            const hideLoading = () => {
+                if (loadingElement) loadingElement.style.display = 'none';
+            };
+
+            const pixelRatioCap = /Mobi|Android|iPhone|iPad|iPod/.test(navigator.userAgent)
+                ? Math.min(window.devicePixelRatio, 1.5)
+                : window.devicePixelRatio;
+
+            const config = {
+                dataUrl: buildUrl + "/WebglBuild.data",
+                frameworkUrl: buildUrl + "/WebglBuild.framework.js",
+                codeUrl: buildUrl + "/WebglBuild.wasm",
+                streamingAssetsUrl: "StreamingAssets",
+                companyName: "Artnroll Games",
+                productName: "BitBullz Evolution",
+                productVersion: "0.4",
+                devicePixelRatio: pixelRatioCap,
+                showBanner: (msg, type) => {
+                    if (type === 'progress') {
+                        const progressPercent = Math.round(msg * 100);
+                        if (loadingElement) loadingElement.innerHTML = `Loading... ${progressPercent}%`;
+                        // keep PlayDeck.SetLoading compatibility if used
+                        if (window.PlayDeck_SetLoading) {
+                            try { window.PlayDeck_SetLoading(progressPercent); } catch (e) { }
+                        }
+                    }
                 }
-            }).then((unityInstance) => {
-                window.unityInstance = unityInstance;
-                if (window.playDeckBridge?.init) {
-                    try { window.playDeckBridge.init(unityInstance); } catch (e) { window.appendDebug && window.appendDebug("[bridge.init error] " + e); }
+            };
+
+            const script = document.createElement("script");
+            script.src = loaderUrl;
+            script.onload = () => {
+                createUnityInstance(canvas, config, (progress) => {
+                    const progressPercent = Math.round(progress * 100);
+                    if (loadingElement) loadingElement.innerHTML = `Loading... ${progressPercent}%`;
+                    if (window.PlayDeck_SetLoading) {
+                        try { window.PlayDeck_SetLoading(progressPercent); } catch (e) { }
+                    }
+                }).then((unityInstance) => {
+                    console.log("Unity loaded");
+                    window.unityInstance = unityInstance;
+                    hideLoading();
+
+                    // give the bridge the unity instance if it has init method
+                    if (window.playDeckBridge && typeof window.playDeckBridge.init === 'function') {
+                        try { window.playDeckBridge.init(unityInstance); } catch (e) { console.warn(e); }
+                    }
+
+                    // Force get Telegram username once loaded (safe if function exists)
+                    if (typeof window.getTelegramUsername === 'function') {
+                        try { window.getTelegramUsername('LoginManager', 'OnUsernameReceived'); } catch (e) { }
+                    }
+                }).catch(err => {
+                    console.error("Unity create failed:", err);
+                    if (loadingElement) {
+                        loadingElement.innerHTML = "Failed to load. Open console for details.";
+                        loadingElement.style.color = "red";
+                    }
+                });
+            };
+            script.onerror = (err) => {
+                console.error("Failed loading Unity loader:", err);
+                if (loadingElement) {
+                    loadingElement.innerHTML = "Failed to load. Refresh the page.";
+                    loadingElement.style.color = "red";
                 }
-                window.appendDebug && window.appendDebug("[Unity] Instance created");
-            }).catch(err => {
-                window.appendDebug && window.appendDebug("[Unity ERROR] " + err);
-                console.error("Unity failed to load:", err);
-            });
-        };
-        script.onerror = (e) => {
-            window.appendDebug && window.appendDebug("[LOADER ERROR] failed to load loader script");
-            console.error("Failed to load Unity loader", e);
-        };
-        document.body.appendChild(script);
-
-        // Telegram Play message forwarding (unchanged)
-        window.addEventListener('message', (ev) => {
-            const data = ev.data?.playdeck;
-            if (!data || !window.unityInstance) return;
-            if (data.method === 'play') {
-                window.unityInstance.SendMessage('LoadingScreenUI', 'OnPlayButton');
-            }
+            };
+            document.body.appendChild(script);
         });
-
-        // console controls wiring
-        document.getElementById('toggleConsole').addEventListener('click', () => {
-            const box = document.getElementById('onScreenConsole');
-            box.style.display = box.style.display === 'none' ? 'block' : 'none';
-        });
-        document.getElementById('clearConsole').addEventListener('click', () => {
-            const box = document.getElementById('onScreenConsole');
-            box.innerHTML = '';
-        });
-
-        // small helper to ensure appendDebug exists (playdeckBridge.js sets it too)
-        window.appendDebug = window.appendDebug || function (msg) {
-            try {
-                const box = document.getElementById('onScreenConsole');
-                if (!box) return;
-                const el = document.createElement('div');
-                el.className = 'line';
-                const now = new Date();
-                const time = now.toLocaleTimeString();
-                el.innerHTML = `<span class="time">[${time}]</span> ${String(msg)}`;
-                box.appendChild(el);
-                // keep bottom visible
-                box.scrollTop = box.scrollHeight;
-            } catch (e) { console.log("appendDebug fail", e); }
-        };
-
-        // hide console initially if you want (currently shown)
-        //document.getElementById('onScreenConsole').style.display = 'none';
     </script>
 </body>
 </html>
