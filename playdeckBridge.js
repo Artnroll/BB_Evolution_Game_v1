@@ -1,74 +1,16 @@
-﻿// playdeckBridge.js (UPDATED)
-// - Adds on-screen debug console
-// - Makes ad callbacks robust (multiple callback names / promise handling)
-// - Preserves existing stubs and telegram username getter
-
+﻿// playdeckBridge.js
 (function () {
     'use strict';
 
     // --- Configuration ----
-    const AD_BLOCK_ID = '15960'; // your AdsGram block id
-    const ADSGRAM_INIT_OPTS = { blockId: AD_BLOCK_ID, debug: true, debugConsole: true };
+    const DEFAULT_AD_BLOCK_ID = '15960'; // your default energy ad block id (existing)
+    const ADSGRAM_INIT_OPTS = { blockId: DEFAULT_AD_BLOCK_ID, debug: true, debugConsole: true };
 
-    // --- On-screen debug panel (useful when testing inside Telegram where console is hidden) ---
-    (function createDebugPanel() {
-        if (window.__playdeck_debug_panel_created) return;
-        window.__playdeck_debug_panel_created = true;
+    function safeLog(...args) { try { console.log(...args); } catch (e) { } }
+    function safeWarn(...args) { try { console.warn(...args); } catch (e) { } }
+    function safeError(...args) { try { console.error(...args); } catch (e) { } }
 
-        const panel = document.createElement('div');
-        panel.id = 'playdeck-debug-panel';
-        panel.style.cssText = `
-            position: fixed;
-            bottom: 10px;
-            left: 10px;
-            width: 320px;
-            max-height: 45vh;
-            overflow-y: auto;
-            background: rgba(0,0,0,0.85);
-            color: #fff;
-            font-family: monospace;
-            font-size: 12px;
-            padding: 8px;
-            border-radius: 8px;
-            z-index: 99999;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            line-height: 1.2;
-        `;
-        panel.innerHTML = '<strong style="color:yellow">PLAYDECK DEBUG</strong><div id="playdeck-debug-contents" style="margin-top:6px;"></div>';
-        document.body.appendChild(panel);
-
-        // small clear button
-        const btn = document.createElement('button');
-        btn.textContent = 'Clear';
-        btn.style.cssText = 'position: absolute; right: 8px; top: 6px; background:#222;color:#fff;border:none;padding:2px 6px;border-radius:4px;cursor:pointer';
-        btn.onclick = () => {
-            const c = document.getElementById('playdeck-debug-contents');
-            if (c) c.innerHTML = '';
-        };
-        panel.appendChild(btn);
-
-        // expose appendDebug
-        window.appendDebug = function (msg) {
-            try {
-                const c = document.getElementById('playdeck-debug-contents');
-                if (!c) return;
-                const el = document.createElement('div');
-                el.textContent = (new Date()).toISOString().substr(11, 12) + ' » ' + msg;
-                c.appendChild(el);
-                c.scrollTop = c.scrollHeight;
-            } catch (e) {
-                try { console.log('appendDebug error', e); } catch (_) { }
-            }
-        };
-        window.appendDebug('Debug panel ready');
-    })();
-
-    // small helpers
-    function safeLog(...args) { try { console.log(...args); window.appendDebug && window.appendDebug(args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')); } catch (e) { } }
-    function safeWarn(...args) { try { console.warn(...args); window.appendDebug && window.appendDebug('[WARN] ' + args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')); } catch (e) { } }
-    function safeError(...args) { try { console.error(...args); window.appendDebug && window.appendDebug('[ERR] ' + args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')); } catch (e) { } }
-
-    // --- Bridge object that stores unity instance ---
+    // Bridge object to hold unity instance
     const bridge = {
         unityInstance: null,
         init(unity) {
@@ -77,91 +19,75 @@
         }
     };
 
-    // backward compatibility
-    window.playDeckBridge = window.playDeckBridge || bridge;
+    window.playDeckBridge = bridge;
 
-    // --- SANE STUBS to avoid null DllImport crashes ---
-    window.PlayDeck_SetLoading = function (progress) {
-        safeLog('PlayDeck_SetLoading (stub):', progress);
-    };
-
+    // -- Stubs to avoid null calls from Unity --
+    window.PlayDeck_SetLoading = function (progress) { safeLog('PlayDeck_SetLoading called (stub):', progress); };
     window.PlayDeck_GameEnd = function () {
-        safeLog('PlayDeck_GameEnd (stub)');
+        safeLog('PlayDeck_GameEnd called (stub)');
         try { window.parent.postMessage({ playdeck: { method: 'gameEnd' } }, '*'); } catch (e) { }
     };
-
-    window.PlayDeck_Analytics = function (eventName, payload) {
-        safeLog('PlayDeck_Analytics (stub):', eventName, payload);
-    };
-
-    window.PlayDeck_AreAdsAvailable = function () {
-        safeLog('PlayDeck_AreAdsAvailable (stub) -> 0');
-        return 0;
-    };
-
-    window.PlayDeck_PreloadAds = function () {
-        safeLog('PlayDeck_PreloadAds (stub)');
-    };
-
+    window.PlayDeck_Analytics = function (eventName, payload) { safeLog('PlayDeck_Analytics (stub):', eventName, payload); };
+    window.PlayDeck_AreAdsAvailable = function () { safeLog('PlayDeck_AreAdsAvailable called (stub) -> returning 0'); return 0; };
+    window.PlayDeck_PreloadAds = function () { safeLog('PlayDeck_PreloadAds called (stub)'); };
     window.PlayDeck_ShowRewardedAd = function () {
-        safeLog('PlayDeck_ShowRewardedAd (stub) — sending failure to Unity');
-        try { (bridge.unityInstance || window.unityInstance)?.SendMessage('AdsManager', 'OnAdCompleted', "false"); } catch (e) { }
+        safeLog('PlayDeck_ShowRewardedAd called (stub) - no ads available');
+        try { if (bridge.unityInstance && bridge.unityInstance.SendMessage) bridge.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false"); } catch (e) { }
     };
 
-    // --- AdsGram detection / state ---
+    // ----- AdsGram detection & init (same logic you had) -----
     let adsState = {
         methodType: null, // 'controller' | 'callback' | 'generic'
         controller: null,
         methodName: null,
-        ready: false,
-        globalObjName: null
+        ready: false
     };
 
     function detectAdsGram() {
         const G = window;
-        const candidateNames = ['AdsGram', 'Adsgram', 'AdsGramSDK', 'AdsgramSDK', 'sad', 'Ads'];
+        const candidateNames = ['AdsGram', 'Adsgram', 'AdsGramSDK', 'AdsgramSDK', 'sad', 'Ads', 'adsgram'];
         for (const name of candidateNames) {
             if (G[name]) {
-                safeLog('Detected AdsGram global as', name);
-                adsState.globalObjName = name;
+                safeLog('playdeckBridge: detected AdsGram global as', name);
+                adsState.globalName = name;
                 return G[name];
             }
         }
         if (G.sad && (G.sad.AdsGram || G.sad.Adsgram)) {
-            const o = G.sad.AdsGram || G.sad.Adsgram;
-            safeLog('Detected AdsGram under sad namespace');
-            adsState.globalObjName = 'sad.AdsGram';
-            return o;
+            safeLog('playdeckBridge: detected AdsGram under sad namespace');
+            adsState.globalName = 'sad.AdsGram';
+            return G.sad.AdsGram || G.sad.Adsgram;
         }
         return null;
     }
 
-    function initAdsGramControllerIfPossible(globalObj) {
+    function initAdsGramControllerIfPossible(globalObj, initOpts) {
         if (globalObj && typeof globalObj.init === 'function') {
             try {
-                const controller = globalObj.init(ADSGRAM_INIT_OPTS);
+                // Many SDKs accept options; we override blockId if caller passed one later.
+                const controller = globalObj.init(initOpts || ADSGRAM_INIT_OPTS);
                 if (controller && typeof controller.show === 'function') {
                     adsState.methodType = 'controller';
                     adsState.controller = controller;
                     adsState.ready = true;
-                    safeLog('AdsGram controller initialized (init -> controller.show)');
+                    safeLog('playdeckBridge: AdsGram controller initialized (init->controller.show)');
                     return true;
                 }
             } catch (e) {
-                safeWarn('AdsGram.init threw', e);
+                safeWarn('playdeckBridge: AdsGram.init threw', e);
             }
         }
         return false;
     }
 
     function findCallbackStyleMethod(globalObj) {
-        const methodCandidates = ['showRewarded', 'showRewardedAd', 'showAd', 'showInterstitial', 'displayAd', 'show'];
+        const methodCandidates = ['showRewarded', 'showRewardedAd', 'showAd', 'show', 'showInterstitial', 'displayAd'];
         for (const m of methodCandidates) {
             if (globalObj && typeof globalObj[m] === 'function') {
                 adsState.methodType = 'callback';
                 adsState.methodName = m;
                 adsState.ready = true;
-                safeLog('Found AdsGram callback-style method:', m);
+                safeLog('playdeckBridge: Found AdsGram callback-style method:', m);
                 return true;
             }
         }
@@ -177,95 +103,33 @@
                     adsState.methodType = 'generic';
                     adsState.methodName = p;
                     adsState.ready = true;
-                    safeLog('Using generic AdsGram method:', p);
+                    safeLog('playdeckBridge: Using generic AdsGram method:', p);
                     return true;
                 }
             }
-        } catch (e) {
-            safeWarn('generic search error', e);
-        }
+        } catch (e) { /* ignore */ }
         return false;
     }
 
     function initializeAdsGramIfPossible() {
         const globalAds = detectAdsGram();
         if (!globalAds) {
-            safeLog('No AdsGram global found yet');
+            safeLog('playdeckBridge: No AdsGram global found yet');
             return false;
         }
-        // prefer controller.init style
         if (initAdsGramControllerIfPossible(globalAds)) return true;
         if (findCallbackStyleMethod(globalAds)) return true;
         if (tryGenericSearch(globalAds)) return true;
         return false;
     }
 
-    // run detection attempts
-    setTimeout(() => initializeAdsGramIfPossible(), 300);
-    setTimeout(() => initializeAdsGramIfPossible(), 1000);
-    setTimeout(() => initializeAdsGramIfPossible(), 3000);
+    setTimeout(() => { initializeAdsGramIfPossible(); }, 300);
+    setTimeout(() => { initializeAdsGramIfPossible(); }, 1000);
+    setTimeout(() => { initializeAdsGramIfPossible(); }, 3000);
 
-    // expose state for debugging
-    window.playDeckBridge = window.playDeckBridge || {};
     window.playDeckBridge._adsState = adsState;
 
-    // --- Enhanced ad-callback wiring ---
-    function sendAdResultToUnity(success) {
-        const str = success ? "true" : "false";
-        try {
-            const u = bridge.unityInstance || window.unityInstance;
-            if (u && typeof u.SendMessage === 'function') {
-                safeLog('Sending OnAdCompleted ->', str);
-                u.SendMessage('AdsManager', 'OnAdCompleted', str);
-            } else {
-                safeWarn('Unity instance not ready when sending ad result:', str);
-            }
-        } catch (e) {
-            safeError('Failed to SendMessage to Unity AdsManager.OnAdCompleted:', e);
-        }
-    }
-
-    // Wrap multiple possible success callback names into a single handler
-    function makeAdCallbacks() {
-        return {
-            onReward: function (payload) {
-                safeLog('Ad callback: onReward', payload);
-                sendAdResultToUnity(true);
-            },
-            onRewarded: function (payload) {
-                safeLog('Ad callback: onRewarded', payload);
-                sendAdResultToUnity(true);
-            },
-            onComplete: function (payload) {
-                safeLog('Ad callback: onComplete', payload);
-                // Some SDKs call complete even for skip. Heuristic: treat complete as success.
-                sendAdResultToUnity(true);
-            },
-            onFinish: function (payload) {
-                safeLog('Ad callback: onFinish', payload);
-                sendAdResultToUnity(true);
-            },
-            onSuccess: function (payload) {
-                safeLog('Ad callback: onSuccess', payload);
-                sendAdResultToUnity(true);
-            },
-            onClose: function () {
-                safeLog('Ad callback: onClose (no reward)');
-                // Usually onClose means closed without reward; treat as false
-                sendAdResultToUnity(false);
-            },
-            onCancel: function () {
-                safeLog('Ad callback: onCancel (no reward)');
-                sendAdResultToUnity(false);
-            },
-            onError: function (err) {
-                safeWarn('Ad callback: onError', err);
-                sendAdResultToUnity(false);
-            }
-        };
-    }
-
-    // Expose real functions (replace stubs)
+    // Expose real ad functions once adsState is ready (or after attempts)
     function exposeRealAdFunctions() {
         window.PlayDeck_AreAdsAvailable = function () {
             try {
@@ -283,110 +147,113 @@
             if (!adsState.ready) initializeAdsGramIfPossible();
         };
 
+        // Legacy: keep default call (uses DEFAULT_AD_BLOCK_ID)
         window.PlayDeck_ShowRewardedAd = function () {
-            safeLog('PlayDeck_ShowRewardedAd invoked, adsState=', JSON.parse(JSON.stringify(adsState, Object.getOwnPropertyNames(adsState))));
-            const callbacks = makeAdCallbacks();
+            safeLog('PlayDeck_ShowRewardedAd (default) invoked - delegating to block id', DEFAULT_AD_BLOCK_ID);
+            // Delegate to the new function
+            if (typeof window.PlayDeck_ShowRewardedAdForBlock === 'function') {
+                try { return window.PlayDeck_ShowRewardedAdForBlock(DEFAULT_AD_BLOCK_ID); } catch (e) { safeWarn('PlayDeck_ShowRewardedAd fallback failed', e); }
+            }
+            // fallback failure:
+            try { if (bridge.unityInstance) bridge.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false"); } catch (e) { }
+        };
+
+        // MAIN NEW FUNCTION: show an ad for a specific blockId (string)
+        window.PlayDeck_ShowRewardedAdForBlock = function (blockId) {
+            const adBlock = blockId || DEFAULT_AD_BLOCK_ID;
+            safeLog('PlayDeck_ShowRewardedAdForBlock called with blockId:', adBlock, 'adsState:', JSON.parse(JSON.stringify(adsState, Object.getOwnPropertyNames(adsState))));
             const globalAds = detectAdsGram();
 
-            // 1) controller style: try controller.show(options) first, then controller.show()
-            if (adsState.methodType === 'controller' && adsState.controller) {
+            // controller style: prefer controller.show() — some controllers accept block id param in init, but many use controller.show()
+            if (adsState.methodType === 'controller' && adsState.controller && typeof adsState.controller.show === 'function') {
                 try {
-                    // prefer passing callbacks if controller.show accepts args
-                    if (typeof adsState.controller.show === 'function') {
-                        safeLog('Calling controller.show with callbacks...');
-                        try {
-                            const maybe = adsState.controller.show(callbacks);
-                            if (maybe && typeof maybe.then === 'function') {
-                                maybe.then((res) => {
-                                    safeLog('controller.show promise resolved', res);
-                                    // sometimes the resolved value indicates reward state, check heuristics
-                                    if (res && (res.rewarded === true || res.success === true || res.status === 'rewarded')) {
-                                        sendAdResultToUnity(true);
-                                    } else {
-                                        // treat resolve as success by default
-                                        sendAdResultToUnity(true);
-                                    }
-                                }).catch((err) => {
-                                    safeWarn('controller.show promise rejected', err);
-                                    sendAdResultToUnity(false);
-                                });
-                                return maybe;
-                            } else {
-                                // no promise returned — assume the callbacks will fire; if they don't, assume success
-                                safeLog('controller.show returned non-promise; assuming callbacks or success');
-                                return;
-                            }
-                        } catch (err) {
-                            safeWarn('controller.show(callbacks) failed, trying controller.show()', err);
-                            // fallback to calling without args
-                            try {
-                                const maybe2 = adsState.controller.show();
-                                if (maybe2 && typeof maybe2.then === 'function') {
-                                    maybe2.then(() => sendAdResultToUnity(true)).catch((err2) => { safeWarn('controller.show() rejected', err2); sendAdResultToUnity(false); });
-                                    return maybe2;
-                                } else {
-                                    sendAdResultToUnity(true);
-                                    return;
-                                }
-                            } catch (err3) {
-                                safeWarn('controller.show() fallback failed', err3);
-                                sendAdResultToUnity(false);
-                                return;
-                            }
-                        }
+                    // Some controllers accept parameter object or block id. We'll attempt various options safely:
+                    // 1) try controller.show({ blockId: ... })
+                    // 2) fall back to controller.show()
+                    let r;
+                    try {
+                        r = adsState.controller.show({ blockId: adBlock });
+                    } catch (e) {
+                        safeLog('controller.show({blockId}) threw, try controller.show() without args', e);
+                        r = adsState.controller.show();
                     }
-                } catch (e) {
-                    safeWarn('controller show invocation error', e);
-                    sendAdResultToUnity(false);
-                    return;
-                }
-            }
 
-            // 2) callback-style: method(blockId, callbacks)
-            if ((adsState.methodType === 'callback' || adsState.methodType === 'generic') && adsState.methodName) {
-                try {
-                    const methodName = adsState.methodName;
-                    const method = globalAds && globalAds[methodName];
-                    if (typeof method === 'function') {
-                        safeLog('Calling Ads method:', methodName, 'with callbacks');
-                        // call with blockId and callbacks object
-                        const ret = method.call(globalAds, AD_BLOCK_ID, callbacks);
-                        // if returns Promise -> attach handlers
-                        if (ret && typeof ret.then === 'function') {
-                            ret.then((r) => {
-                                safeLog('Ads method promise resolved', r);
-                                // treat resolution as success
-                                sendAdResultToUnity(true);
-                            }).catch((er) => {
-                                safeWarn('Ads method promise rejected', er);
-                                sendAdResultToUnity(false);
-                            });
-                            return ret;
-                        }
-                        // else callbacks will handle results
-                        return ret;
+                    if (r && typeof r.then === 'function') {
+                        r.then((result) => {
+                            safeLog('controller.show resolved', result);
+                            try { if (bridge.unityInstance && bridge.unityInstance.SendMessage) bridge.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "true"); } catch (e) { }
+                        }).catch((err) => {
+                            safeWarn('controller.show rejected', err);
+                            try { if (bridge.unityInstance && bridge.unityInstance.SendMessage) bridge.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false"); } catch (e) { }
+                        });
+                        return r;
                     } else {
-                        safeWarn('Ads method not a function anymore:', adsState.methodName);
+                        safeLog('controller.show returned non-promise, assume success');
+                        try { if (bridge.unityInstance && bridge.unityInstance.SendMessage) bridge.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "true"); } catch (e) { }
+                        return;
                     }
                 } catch (e) {
-                    safeWarn('Exception calling Ads method', e);
-                    sendAdResultToUnity(false);
+                    safeWarn('Exception calling controller.show', e);
+                    try { if (bridge.unityInstance && bridge.unityInstance.SendMessage) bridge.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false"); } catch (e) { }
                     return;
                 }
             }
 
-            // 3) Not ready fallback
-            safeWarn('PlayDeck_ShowRewardedAd: Ads not ready; notifying Unity with false');
-            sendAdResultToUnity(false);
+            // callback/generic style: call globalAds[methodName](blockId, callbacks)
+            if ((adsState.methodType === 'callback' || adsState.methodType === 'generic') && adsState.methodName && globalAds) {
+                const method = globalAds[adsState.methodName];
+                if (typeof method === 'function') {
+                    try {
+                        const maybeResult = method.call(globalAds, adBlock, {
+                            onReward: function (reward) {
+                                safeLog('Ads callback onReward', reward);
+                                try { if (bridge.unityInstance) bridge.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "true"); } catch (e) { }
+                            },
+                            onClose: function () {
+                                safeLog('Ads callback onClose');
+                                try { if (bridge.unityInstance) bridge.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false"); } catch (e) { }
+                            },
+                            onError: function (err) {
+                                safeWarn('Ads callback onError', err);
+                                try { if (bridge.unityInstance) bridge.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false"); } catch (e) { }
+                            }
+                        });
+
+                        if (maybeResult && typeof maybeResult.then === 'function') {
+                            maybeResult.then(() => {
+                                safeLog('Ads method-promise resolved (maybeResult)');
+                                try { if (bridge.unityInstance) bridge.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "true"); } catch (e) { }
+                            }).catch((err) => {
+                                safeWarn('Ads method-promise rejected', err);
+                                try { if (bridge.unityInstance) bridge.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false"); } catch (e) { }
+                            });
+                        }
+
+                        return maybeResult;
+                    } catch (e) {
+                        safeWarn('Exception calling AdsGram callback-style method', e);
+                        try { if (bridge.unityInstance) bridge.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false"); } catch (e) { }
+                        return;
+                    }
+                } else {
+                    safeWarn('Ads method not a function:', adsState.methodName);
+                    try { if (bridge.unityInstance) bridge.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false"); } catch (e) { }
+                    return;
+                }
+            }
+
+            // Not ready fallback:
+            safeWarn('PlayDeck_ShowRewardedAdForBlock: Ads not ready');
+            try { if (bridge.unityInstance) bridge.unityInstance.SendMessage('AdsManager', 'OnAdCompleted', "false"); } catch (e) { }
             return;
         };
 
-        safeLog('playdeckBridge: Real ad functions exposed');
+        safeLog('playdeckBridge: Real ad functions exposed.');
     }
 
-    // Keep attempting to init and then expose real functions
+    // Try init for a few attempts then expose real functions (or fallback)
     let initAttempts = 0;
-    const maxInitAttempts = 12;
+    const maxInitAttempts = 10;
     const initTimer = setInterval(() => {
         initAttempts++;
         if (!adsState.ready) initializeAdsGramIfPossible();
@@ -395,13 +262,13 @@
             exposeRealAdFunctions();
         } else if (initAttempts >= maxInitAttempts) {
             clearInterval(initTimer);
-            // still expose functions to avoid null calls (they will report not available)
+            // still expose so Unity won't crash (but will return not available)
             exposeRealAdFunctions();
-            safeWarn('playdeckBridge: AdsGram not detected after attempts; real functions exposed but will return not available.');
+            safeWarn('playdeckBridge: AdsGram not detected after attempts; real functions exposed but will report not available.');
         }
     }, 700);
 
-    // --- Telegram username retrieval used by LoginManager ---
+    // Telegram username helper (unchanged)
     window.getTelegramUsername = function (unityObjectName, callbackMethod) {
         safeLog('getTelegramUsername called');
         function sendIfReady() {
@@ -409,15 +276,10 @@
                 if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
                     const user = window.Telegram.WebApp.initDataUnsafe.user;
                     const username = user.username ? user.username : (user.first_name || ("Player_" + user.id));
-                    const u = bridge.unityInstance || window.unityInstance;
-                    if (u && typeof u.SendMessage === 'function') {
-                        safeLog('Sending username to Unity:', username, '->', unityObjectName, callbackMethod);
-                        u.SendMessage(unityObjectName, callbackMethod, username);
-                        return true;
+                    if (bridge.unityInstance && bridge.unityInstance.SendMessage) {
+                        bridge.unityInstance.SendMessage(unityObjectName, callbackMethod, username);
                     } else {
-                        safeWarn('Unity instance not ready for username send');
-                        // fallback: set window.lastTelegramUsername for manual pick up
-                        window.lastTelegramUsername = username;
+                        try { if (window.unityInstance && window.unityInstance.SendMessage) window.unityInstance.SendMessage(unityObjectName, callbackMethod, username); } catch (e) { }
                     }
                     safeLog('getTelegramUsername: sent username ->', username);
                     return true;
@@ -427,29 +289,24 @@
             }
             return false;
         }
-
         if (sendIfReady()) return;
-
         let tries = 0;
-        const max = 10;
+        const max = 8;
         const t = setInterval(() => {
             tries++;
-            if (sendIfReady()) {
+            if (sendIfReady() || tries >= max) {
                 clearInterval(t);
-            } else if (tries >= max) {
-                clearInterval(t);
-                safeWarn('getTelegramUsername: giving up after retries');
+                if (tries >= max) safeWarn('getTelegramUsername: giving up after retries');
             }
         }, 700);
     };
 
-    // expose bridge helpers
+    // expose the bridge convenience API
     window.playDeckBridge = Object.assign(window.playDeckBridge || {}, {
         init: function (unityInstance) { bridge.init(unityInstance); },
         _internalState: () => ({ adsState: adsState })
     });
 
-    safeLog('playdeckBridge loaded (enhanced ad callbacks + debug UI).');
-
+    safeLog('playdeckBridge loaded (ads shim + telegram username).');
 })();
 
