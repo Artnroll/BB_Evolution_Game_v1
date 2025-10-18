@@ -4,7 +4,7 @@
 
     // --- Configuration ----
     const DEFAULT_AD_BLOCK_ID = '15960'; // default energy block id
-    const ADSGRAM_INIT_OPTS = { blockId: DEFAULT_AD_BLOCK_ID, debug: true, debugConsole: true };
+    const ADSGRAM_INIT_OPTS = { blockId: DEFAULT_AD_BLOCK_ID, debug: false, debugConsole: true };
     const UNITY_SEND_RETRY_MS = 250;
     const UNITY_SEND_MAX_RETRIES = 30;
 
