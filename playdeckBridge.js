@@ -66,6 +66,13 @@
         try { sendToUnity('AdsManager', 'OnAdCompleted', "false"); } catch (e) { }
     };
 
+    // NEW: task stub (so PlayDeck_ShowTaskForBlock exists immediately)
+    window.PlayDeck_ShowTaskForBlock = function (blockId) {
+        safeLog('PlayDeck_ShowTaskForBlock (stub) called with', blockId);
+        try { sendToUnity('AdsManager', 'OnTaskCompleted', "false"); } catch (e) { }
+        return 0;
+    };
+
     // Legacy default stub
     window.PlayDeck_ShowRewardedAd = function () {
         safeLog('PlayDeck_ShowRewardedAd (stub) called - delegating to block function');
@@ -193,7 +200,7 @@
             try { return window.PlayDeck_ShowRewardedAdForBlock(DEFAULT_AD_BLOCK_ID); } catch (e) { safeWarn(e); }
         };
 
-        // MAIN: show ad for specific block
+        // MAIN: show rewarded ad for specific block
         window.PlayDeck_ShowRewardedAdForBlock = function (blockId) {
             const adBlock = blockId || DEFAULT_AD_BLOCK_ID;
             safeLog('PlayDeck_ShowRewardedAdForBlock called with', adBlock, 'adsState:', adsState);
@@ -284,7 +291,100 @@
             return;
         };
 
-        safeLog('playdeckBridge: Real ad functions exposed.');
+        // MAIN: show TASK block for specific block id (calls AdsGram's UI for tasks).
+        // This is separate so callbacks map to OnTaskCompleted on Unity side.
+        window.PlayDeck_ShowTaskForBlock = function (blockId) {
+            const adBlock = blockId || DEFAULT_AD_BLOCK_ID;
+            safeLog('PlayDeck_ShowTaskForBlock called with', adBlock, 'adsState:', adsState);
+
+            // send debug to Unity
+            try { sendToUnity('AdsManager', 'OnAdRequestStarted', adBlock); } catch (e) { }
+
+            const globalAds = detectAdsGram();
+
+            // controller style: many controllers treat tasks same as show() but we'll call with blockId
+            if (adsState.methodType === 'controller' && adsState.controller && typeof adsState.controller.show === 'function') {
+                try {
+                    let r;
+                    try {
+                        r = adsState.controller.show({ blockId: adBlock });
+                    } catch (e) {
+                        safeLog('controller.show({blockId}) threw (task), calling without args', e);
+                        r = adsState.controller.show();
+                    }
+
+                    if (r && typeof r.then === 'function') {
+                        r.then((result) => {
+                            safeLog('controller.show (task) resolved', result);
+                            try { sendToUnity('AdsManager', 'OnTaskCompleted', "true"); } catch (e) { }
+                        }).catch((err) => {
+                            safeWarn('controller.show (task) rejected', err);
+                            try { sendToUnity('AdsManager', 'OnTaskCompleted', "false"); } catch (e) { }
+                        });
+                        return r;
+                    } else {
+                        safeLog('controller.show (task) non-promise -> assume success');
+                        try { sendToUnity('AdsManager', 'OnTaskCompleted', "true"); } catch (e) { }
+                        return;
+                    }
+                } catch (e) {
+                    safeWarn('Exception calling controller.show for task', e);
+                    try { sendToUnity('AdsManager', 'OnTaskCompleted', "false"); } catch (e) { }
+                    return;
+                }
+            }
+
+            // callback-style
+            if ((adsState.methodType === 'callback' || adsState.methodType === 'generic') && adsState.methodName && globalAds) {
+                const method = globalAds[adsState.methodName];
+                if (typeof method === 'function') {
+                    try {
+                        const maybeResult = method.call(globalAds, adBlock, {
+                            // For tasks we map the SDK callbacks to OnTaskCompleted
+                            onReward: function (reward) {
+                                safeLog('Ads TASK callback:onReward', reward);
+                                try { sendToUnity('AdsManager', 'OnTaskCompleted', "true"); } catch (e) { }
+                            },
+                            onClose: function () {
+                                safeLog('Ads TASK callback:onClose');
+                                try { sendToUnity('AdsManager', 'OnTaskCompleted', "false"); } catch (e) { }
+                            },
+                            onError: function (err) {
+                                safeWarn('Ads TASK callback:onError', err);
+                                try { sendToUnity('AdsManager', 'OnTaskCompleted', "false"); } catch (e) { }
+                            }
+                        });
+
+                        if (maybeResult && typeof maybeResult.then === 'function') {
+                            maybeResult.then(() => {
+                                safeLog('Ads TASK method-promise resolved (maybeResult)');
+                                try { sendToUnity('AdsManager', 'OnTaskCompleted', "true"); } catch (e) { }
+                            }).catch((err) => {
+                                safeWarn('Ads TASK method-promise rejected (maybeResult)', err);
+                                try { sendToUnity('AdsManager', 'OnTaskCompleted', "false"); } catch (e) { }
+                            });
+                        }
+
+                        return maybeResult;
+                    } catch (e) {
+                        safeWarn('Exception calling AdsGram method for task', e);
+                        try { sendToUnity('AdsManager', 'OnTaskCompleted', "false"); } catch (e) { }
+                        return;
+                    }
+                } else {
+                    safeWarn('Ads method not a function (task):', adsState.methodName);
+                    try { sendToUnity('AdsManager', 'OnTaskCompleted', "false"); } catch (e) { }
+                    return;
+                }
+            }
+
+            // Not ready fallback
+            safeWarn('PlayDeck_ShowTaskForBlock: Ads not ready (fallback)');
+            try { sendToUnity('AdsManager', 'OnTaskCompleted', "false"); } catch (e) { }
+            return;
+        };
+
+        safeLog('playdeckBridge: Real ad & task functions exposed.');
     }
 
     // Attempt initialization repeatedly, then exposeRealAdFunctions (so stubs are replaced)
@@ -333,7 +433,7 @@
         }, 700);
     };
 
-    // expose bridge convenience API
+    // expose the bridge convenience API
     window.playDeckBridge = Object.assign(window.playDeckBridge || {}, {
         init: function (unityInstance) { bridge.init(unityInstance); },
         _internalState: () => ({ adsState: adsState, detectedGlobal: adsState.globalName })
@@ -342,4 +442,5 @@
     safeLog('playdeckBridge loaded (safe stubs + ads shim + telegram username).');
 
 })();
+
 
