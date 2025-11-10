@@ -35,12 +35,12 @@
             text-align: center;
             z-index: 10000;
         }
-        /* SIMPLE DEBUG WINDOW */
+
         #debug-window {
             position: fixed;
             top: 10px;
             left: 10px;
-            width: 350px;
+            width: 400px;
             background: rgba(0,0,0,0.8);
             color: lime;
             font-family: Arial;
@@ -55,9 +55,8 @@
     <canvas id="unity-canvas" tabindex="-1"></canvas>
     <div id="loading">Loading...</div>
 
-    <!-- SIMPLE DEBUG WINDOW -->
     <div id="debug-window">
-        <div><strong>Telegram Debug:</strong></div>
+        <div><strong>Debug Info:</strong></div>
         <div id="debug-content"></div>
     </div>
 
@@ -65,59 +64,62 @@
     <script>
         function debugLog(msg) {
             const content = document.getElementById('debug-content');
-            if (content) {
-                content.innerHTML += msg + '<br>';
-            }
+            if (content) content.innerHTML += msg + '<br>';
             console.log(msg);
         }
 
-        // Enhanced Telegram check
-        function checkTelegram() {
-            debugLog('=== Checking Environment ===');
+        // Check ALL possible ways to get Telegram data
+        function checkAllTelegramMethods() {
+            debugLog('=== CHECKING ALL METHODS ===');
 
-            // Check for Telegram WebApp
-            if (window.Telegram) {
-                debugLog('✓ window.Telegram exists');
-                if (window.Telegram.WebApp) {
-                    debugLog('✓ Telegram.WebApp exists');
-                    debugLog('Platform: ' + (Telegram.WebApp.platform || 'unknown'));
-                    debugLog('Version: ' + (Telegram.WebApp.version || 'unknown'));
-
-                    // Check initData
-                    if (Telegram.WebApp.initDataUnsafe) {
-                        debugLog('✓ initDataUnsafe exists');
-                        if (Telegram.WebApp.initDataUnsafe.user) {
-                            const user = Telegram.WebApp.initDataUnsafe.user;
-                            debugLog('✓ USER DATA FOUND!');
-                            debugLog('Username: ' + (user.username || 'none'));
-                            debugLog('User ID: ' + user.id);
-                            debugLog('First Name: ' + (user.first_name || 'none'));
-                        } else {
-                            debugLog('✗ No user in initDataUnsafe');
-                            debugLog('initDataUnsafe keys: ' + Object.keys(Telegram.WebApp.initDataUnsafe).join(', '));
-                        }
-                    } else {
-                        debugLog('✗ No initDataUnsafe');
-                    }
-                } else {
-                    debugLog('✗ No Telegram.WebApp');
+            // Method 1: Standard Telegram WebApp
+            if (window.Telegram?.WebApp) {
+                debugLog('✓ METHOD 1: Telegram WebApp');
+                const user = Telegram.WebApp.initDataUnsafe?.user;
+                if (user) {
+                    debugLog('USER: ' + user.username + ' (ID: ' + user.id + ')');
+                    return user;
                 }
-            } else {
-                debugLog('✗ No window.Telegram at all');
-                debugLog('This means:');
-                debugLog('- Not a Telegram Mini App');
-                debugLog('- Or opened in regular browser');
-                debugLog('- Or opened in bot chat (not Mini App)');
             }
 
-            // Check URL parameters for Telegram data
-            debugLog('--- URL Analysis ---');
+            // Method 2: Check URL parameters (common in Mini Apps)
             const urlParams = new URLSearchParams(window.location.search);
-            debugLog('Has tgWebAppData: ' + urlParams.has('tgWebAppData'));
             debugLog('URL Params: ' + Array.from(urlParams.keys()).join(', '));
+
+            // Method 3: Check for tgWebAppData in URL
+            const tgWebAppData = urlParams.get('tgWebAppData');
+            if (tgWebAppData) {
+                debugLog('✓ METHOD 2: tgWebAppData in URL');
+                try {
+                    const decoded = JSON.parse(atob(tgWebAppData));
+                    debugLog('tgWebAppData: ' + JSON.stringify(decoded).substring(0, 100));
+                } catch (e) {
+                    debugLog('Error decoding tgWebAppData');
+                }
+            }
+
+            // Method 4: Check for initData in URL
+            const initData = urlParams.get('initData');
+            if (initData) {
+                debugLog('✓ METHOD 3: initData in URL');
+                debugLog('initData: ' + initData.substring(0, 100));
+            }
+
+            // Method 5: Check for any Telegram-related globals
+            debugLog('=== GLOBALS CHECK ===');
+            for (let key in window) {
+                if (key.toLowerCase().includes('telegram') || key.toLowerCase().includes('tg')) {
+                    debugLog('Global: ' + key + ' = ' + typeof window[key]);
+                }
+            }
+
+            debugLog('✗ NO TELEGRAM DATA FOUND');
+            debugLog('This is a regular web page, not a Telegram Mini App');
+            return null;
         }
 
         window.addEventListener('DOMContentLoaded', function () {
+            // Your existing Unity loading code...
             const canvas = document.querySelector("#unity-canvas");
             const loadingElement = document.querySelector("#loading");
             const buildUrl = "Build";
@@ -169,8 +171,8 @@
                         try { window.playDeckBridge.init(unityInstance); } catch (e) { console.warn(e); }
                     }
 
-                    // Check Telegram after Unity loads
-                    setTimeout(checkTelegram, 1000);
+                    // Check for Telegram data
+                    setTimeout(checkAllTelegramMethods, 1000);
 
                     if (typeof window.getTelegramUsername === 'function') {
                         try { window.getTelegramUsername('LoginManager', 'OnUsernameReceived'); } catch (e) { }
