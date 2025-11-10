@@ -5,9 +5,6 @@
     <title>BitBullz Evolution | Unity WebGL</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
-
-    <!-- AdsGram SDK (common host). Keep this first so SDK can load early.
-         If AdsGram gives a different script URL for you, replace this URL with theirs. -->
     <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
     <style>
@@ -38,13 +35,12 @@
             text-align: center;
             z-index: 10000;
         }
-
         /* SIMPLE DEBUG WINDOW */
         #debug-window {
             position: fixed;
             top: 10px;
             left: 10px;
-            width: 300px;
+            width: 350px;
             background: rgba(0,0,0,0.8);
             color: lime;
             font-family: Arial;
@@ -61,15 +57,12 @@
 
     <!-- SIMPLE DEBUG WINDOW -->
     <div id="debug-window">
-        <div>Telegram Debug:</div>
+        <div><strong>Telegram Debug:</strong></div>
         <div id="debug-content"></div>
     </div>
 
-    <!-- PlayDeck bridge (our unified bridge) -->
     <script src="playdeckBridge.js"></script>
-
     <script>
-        // Simple debug function
         function debugLog(msg) {
             const content = document.getElementById('debug-content');
             if (content) {
@@ -78,39 +71,57 @@
             console.log(msg);
         }
 
-        // Check Telegram info
+        // Enhanced Telegram check
         function checkTelegram() {
-            debugLog('Checking Telegram...');
+            debugLog('=== Checking Environment ===');
 
-            if (window.Telegram && Telegram.WebApp) {
-                debugLog('✓ Telegram WebApp found');
-                debugLog('Platform: ' + (Telegram.WebApp.platform || 'unknown'));
+            // Check for Telegram WebApp
+            if (window.Telegram) {
+                debugLog('✓ window.Telegram exists');
+                if (window.Telegram.WebApp) {
+                    debugLog('✓ Telegram.WebApp exists');
+                    debugLog('Platform: ' + (Telegram.WebApp.platform || 'unknown'));
+                    debugLog('Version: ' + (Telegram.WebApp.version || 'unknown'));
 
-                if (Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user) {
-                    const user = Telegram.WebApp.initDataUnsafe.user;
-                    debugLog('✓ User data found');
-                    debugLog('Username: ' + (user.username || 'none'));
-                    debugLog('ID: ' + user.id);
+                    // Check initData
+                    if (Telegram.WebApp.initDataUnsafe) {
+                        debugLog('✓ initDataUnsafe exists');
+                        if (Telegram.WebApp.initDataUnsafe.user) {
+                            const user = Telegram.WebApp.initDataUnsafe.user;
+                            debugLog('✓ USER DATA FOUND!');
+                            debugLog('Username: ' + (user.username || 'none'));
+                            debugLog('User ID: ' + user.id);
+                            debugLog('First Name: ' + (user.first_name || 'none'));
+                        } else {
+                            debugLog('✗ No user in initDataUnsafe');
+                            debugLog('initDataUnsafe keys: ' + Object.keys(Telegram.WebApp.initDataUnsafe).join(', '));
+                        }
+                    } else {
+                        debugLog('✗ No initDataUnsafe');
+                    }
                 } else {
-                    debugLog('✗ No user data');
+                    debugLog('✗ No Telegram.WebApp');
                 }
             } else {
-                debugLog('✗ No Telegram WebApp');
+                debugLog('✗ No window.Telegram at all');
+                debugLog('This means:');
+                debugLog('- Not a Telegram Mini App');
+                debugLog('- Or opened in regular browser');
+                debugLog('- Or opened in bot chat (not Mini App)');
             }
+
+            // Check URL parameters for Telegram data
+            debugLog('--- URL Analysis ---');
+            const urlParams = new URLSearchParams(window.location.search);
+            debugLog('Has tgWebAppData: ' + urlParams.has('tgWebAppData'));
+            debugLog('URL Params: ' + Array.from(urlParams.keys()).join(', '));
         }
 
-        // wait DOMContentLoaded to create unity instance
         window.addEventListener('DOMContentLoaded', function () {
             const canvas = document.querySelector("#unity-canvas");
             const loadingElement = document.querySelector("#loading");
             const buildUrl = "Build";
             const loaderUrl = buildUrl + "/WebglBuild.loader.js";
-
-            function setAdsStatus(text, color) {
-                if (!adsStatus) return;
-                adsStatus.innerHTML = text;
-                if (color) adsStatus.style.background = color;
-            }
 
             const hideLoading = () => {
                 if (loadingElement) loadingElement.style.display = 'none';
@@ -133,7 +144,6 @@
                     if (type === 'progress') {
                         const progressPercent = Math.round(msg * 100);
                         if (loadingElement) loadingElement.innerHTML = `Loading... ${progressPercent}%`;
-                        // keep PlayDeck.SetLoading compatibility if used
                         if (window.PlayDeck_SetLoading) {
                             try { window.PlayDeck_SetLoading(progressPercent); } catch (e) { }
                         }
@@ -155,7 +165,6 @@
                     window.unityInstance = unityInstance;
                     hideLoading();
 
-                    // give the bridge the unity instance if it has init method
                     if (window.playDeckBridge && typeof window.playDeckBridge.init === 'function') {
                         try { window.playDeckBridge.init(unityInstance); } catch (e) { console.warn(e); }
                     }
@@ -163,7 +172,6 @@
                     // Check Telegram after Unity loads
                     setTimeout(checkTelegram, 1000);
 
-                    // Force get Telegram username once loaded (safe if function exists)
                     if (typeof window.getTelegramUsername === 'function') {
                         try { window.getTelegramUsername('LoginManager', 'OnUsernameReceived'); } catch (e) { }
                     }
