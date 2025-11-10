@@ -408,34 +408,97 @@
     window.getTelegramUserFull = function (unityObjectName, callbackMethod) {
         function trySend() {
             try {
-                const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
-                if (u) {
-                    const data = {
-                        id: u.id,
+                let userData = null;
+
+                // Method 1: Standard Telegram WebApp format
+                if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
+                    const u = window.Telegram.WebApp.initDataUnsafe.user;
+                    userData = {
+                        id: u.id || 0,
                         username: u.username || "",
                         first_name: u.first_name || "",
                         last_name: u.last_name || "",
-                        is_premium: !!u.is_premium
+                        is_premium: u.is_premium || false
                     };
-                    SendMessage(unityObjectName, callbackMethod, JSON.stringify(data));
-                    console.log("Sent Telegram user data:", data);
+                }
+                // Method 2: Alternative Telegram data location
+                else if (window.Telegram?.WebApp?.initData) {
+                    // Try to parse initData string
+                    const initData = window.Telegram.WebApp.initData;
+                    console.log("Raw initData:", initData);
+                    // You might need to parse URL-encoded data here
+                }
+                // Method 3: Check for Telegram Android/iOS app injection
+                else if (window.TelegramGameProxy) {
+                    console.log("TelegramGameProxy found:", window.TelegramGameProxy);
+                    // Some Telegram versions inject data differently
+                }
+                // Method 4: Check for any Telegram-related globals
+                else {
+                    console.log("Available Telegram-related globals:");
+                    for (let key in window) {
+                        if (key.toLowerCase().includes('telegram') ||
+                            key.toLowerCase().includes('tg') ||
+                            key.toLowerCase().includes('webapp')) {
+                            console.log(`- ${key}:`, window[key]);
+                        }
+                    }
+                }
+
+                if (userData) {
+                    console.log("Sending Telegram user data:", userData);
+                    SendMessage(unityObjectName, callbackMethod, JSON.stringify(userData));
                     return true;
+                } else {
+                    console.log("No Telegram user data found in current attempt");
+                    return false;
                 }
             } catch (e) {
-                console.warn('getTelegramUserFull error', e);
+                console.warn('getTelegramUserFull error in trySend:', e);
+                return false;
             }
-            return false;
         }
 
-        if (trySend()) return;
+        // Try immediately
+        if (trySend()) {
+            console.log("Telegram data sent successfully on first try");
+            return;
+        }
 
+        // If not found, retry several times with delays
         let tries = 0;
+        const maxTries = 12; // Increased from 8
+        console.log(`Starting Telegram data retry loop (${maxTries} attempts)`);
+
         const interval = setInterval(() => {
             tries++;
-            if (trySend() || tries >= 8) {
+            console.log(`Telegram data retry attempt ${tries}/${maxTries}`);
+
+            if (trySend()) {
+                console.log("Telegram data found on attempt", tries);
+                clearInterval(interval);
+            } else if (tries >= maxTries) {
+                console.log("Giving up on Telegram data after", maxTries, "attempts");
+
+                // Send empty data as fallback so Unity knows we tried
+                const fallbackData = {
+                    id: 0,
+                    username: "unknown",
+                    first_name: "Unknown",
+                    last_name: "User",
+                    is_premium: false
+                };
+
+                try {
+                    SendMessage(unityObjectName, callbackMethod, JSON.stringify(fallbackData));
+                    console.log("Sent fallback user data");
+                } catch (e) {
+                    console.error("Failed to send fallback data:", e);
+                }
+
                 clearInterval(interval);
             }
-        }, 700);
+        }, 500); // Reduced delay to 500ms
     };
 
     // expose the bridge convenience API
