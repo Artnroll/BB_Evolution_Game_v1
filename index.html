@@ -68,180 +68,109 @@
             console.log(msg);
         }
 
-        // FOCUS ON TELEGRAMWEBVIEWPROXY - This is the key!
         function getTelegramData() {
-            debugLog('--- USING TELEGRAMWEBVIEWPROXY ---');
+            debugLog('--- PARSING tgWebAppData FROM HASH ---');
 
-            // METHOD 1: Try TelegramWebviewProxy directly
-            if (window.TelegramWebviewProxy) {
-                debugLog('✅ TelegramWebviewProxy found!');
-
-                // Try to get user data from the proxy
-                try {
-                    // Common methods in TelegramWebviewProxy
-                    if (typeof TelegramWebviewProxy.getUser === 'function') {
-                        const user = TelegramWebviewProxy.getUser();
-                        debugLog('getUser(): ' + JSON.stringify(user));
-                    }
-
-                    if (typeof TelegramWebviewProxy.getUserData === 'function') {
-                        const userData = TelegramWebviewProxy.getUserData();
-                        debugLog('getUserData(): ' + JSON.stringify(userData));
-                    }
-
-                    // Check if user data is stored in the proxy object
-                    for (let key in TelegramWebviewProxy) {
-                        if (key.toLowerCase().includes('user') || key.toLowerCase().includes('data')) {
-                            debugLog('Proxy.' + key + ': ' + JSON.stringify(TelegramWebviewProxy[key]));
-                        }
-                    }
-
-                    // Try to access initData or similar
-                    if (TelegramWebviewProxy.initData) {
-                        debugLog('initData: ' + TelegramWebviewProxy.initData);
-                    }
-
-                } catch (e) {
-                    debugLog('Error accessing proxy: ' + e);
-                }
-            }
-
-            // METHOD 2: Parse the hash string (might contain user data)
+            // FOCUS ON THE HASH - it contains tgWebAppData!
             if (window.location.hash) {
-                debugLog('--- PARSING HASH ---');
-                debugLog('Hash: ' + window.location.hash);
+                const hash = window.location.hash.substring(1); // Remove #
+                debugLog('Raw hash: ' + hash.substring(0, 200) + '...');
 
                 try {
-                    // Try to parse as JSON (remove the #)
-                    const hashData = JSON.parse(decodeURIComponent(window.location.hash.substring(1)));
-                    debugLog('Parsed hash: ' + JSON.stringify(hashData));
+                    // tgWebAppData is usually URL-encoded parameters
+                    // Format: tgWebAppData=query_id=...&user=...&auth_date=...&hash=...
+                    const params = new URLSearchParams(hash);
 
-                    if (hashData.user || hashData.initData) {
-                        debugLog('✅ USER DATA IN HASH!');
-                        extractUserFromHash(hashData);
+                    debugLog('--- URL PARAMETERS FROM HASH ---');
+                    for (let [key, value] of params.entries()) {
+                        debugLog(key + ': ' + value.substring(0, 100));
+                    }
+
+                    // Check if we have tgWebAppData parameter
+                    const tgWebAppData = params.get('tgWebAppData');
+                    if (tgWebAppData) {
+                        debugLog('✅ Found tgWebAppData parameter!');
+                        parseTgWebAppData(tgWebAppData);
                         return;
                     }
+
+                    // If no tgWebAppData param, maybe the entire hash IS tgWebAppData
+                    debugLog('--- PARSING HASH AS tgWebAppData DIRECTLY ---');
+                    parseTgWebAppData(hash);
+
                 } catch (e) {
-                    debugLog('Hash not JSON: ' + e);
-
-                    // Try URL decoding
-                    try {
-                        const decoded = decodeURIComponent(window.location.hash.substring(1));
-                        debugLog('Decoded hash: ' + decoded);
-
-                        // Look for user patterns in the decoded string
-                        if (decoded.includes('user') || decoded.includes('id')) {
-                            extractUserFromString(decoded);
-                        }
-                    } catch (e2) {
-                        debugLog('Cannot decode hash: ' + e2);
-                    }
+                    debugLog('Error parsing hash: ' + e);
                 }
-            }
-
-            // METHOD 3: Try to use TelegramWebviewProxyProto
-            if (window.TelegramWebviewProxyProto) {
-                debugLog('TelegramWebviewProxyProto found');
-                // This might have prototype methods we can use
-            }
-
-            // METHOD 4: Last resort - check if there's a way to request user data
-            debugLog('--- REQUESTING USER DATA ---');
-            requestTelegramUserData();
-        }
-
-        function extractUserFromHash(hashData) {
-            debugLog('Extracting from hash...');
-
-            let userData = null;
-
-            if (hashData.user) {
-                userData = hashData.user;
-            } else if (hashData.initDataUnsafe && hashData.initDataUnsafe.user) {
-                userData = hashData.initDataUnsafe.user;
-            } else if (hashData.initData) {
-                // Parse initData string (usually URL encoded)
-                try {
-                    const params = new URLSearchParams(hashData.initData);
-                    const userStr = params.get('user');
-                    if (userStr) {
-                        userData = JSON.parse(decodeURIComponent(userStr));
-                    }
-                } catch (e) {
-                    debugLog('Error parsing initData: ' + e);
-                }
-            }
-
-            if (userData) {
-                debugLog('✅ EXTRACTED USER: ' + JSON.stringify(userData));
-                sendToUnity(userData);
             } else {
-                debugLog('❌ No user data in hash');
+                debugLog('❌ No hash found');
+                useFallback();
             }
         }
 
-        function extractUserFromString(dataString) {
-            debugLog('Searching for user data in string...');
+        function parseTgWebAppData(tgWebAppData) {
+            debugLog('Parsing tgWebAppData: ' + tgWebAppData.substring(0, 200) + '...');
 
-            // Look for common patterns
-            const idMatch = dataString.match(/"id":\s*(\d+)/);
-            const usernameMatch = dataString.match(/"username":\s*"([^"]*)"/);
-            const firstNameMatch = dataString.match(/"first_name":\s*"([^"]*)"/);
+            try {
+                // tgWebAppData is URL-encoded string of parameters
+                const params = new URLSearchParams(tgWebAppData);
 
-            if (idMatch) {
-                const userData = {
-                    id: parseInt(idMatch[1]),
-                    username: usernameMatch ? usernameMatch[1] : 'unknown',
-                    first_name: firstNameMatch ? firstNameMatch[1] : 'User',
-                    last_name: '',
-                    is_premium: false
-                };
-                debugLog('✅ EXTRACTED FROM STRING: ' + JSON.stringify(userData));
-                sendToUnity(userData);
-                return;
+                debugLog('--- tgWebAppData PARAMETERS ---');
+                for (let [key, value] of params.entries()) {
+                    debugLog(key + ': ' + (key === 'user' ? 'USER_DATA!' : value.substring(0, 100)));
+                }
+
+                // The user data is in the 'user' parameter as URL-encoded JSON
+                const userParam = params.get('user');
+                if (userParam) {
+                    debugLog('✅ Found user parameter!');
+
+                    try {
+                        // URL-decode then parse JSON
+                        const decodedUser = decodeURIComponent(userParam);
+                        debugLog('Decoded user: ' + decodedUser);
+
+                        const userData = JSON.parse(decodedUser);
+                        debugLog('✅ PARSED USER DATA:');
+                        debugLog('ID: ' + userData.id);
+                        debugLog('Username: @' + (userData.username || 'none'));
+                        debugLog('First Name: ' + userData.first_name);
+                        debugLog('Last Name: ' + userData.last_name);
+                        debugLog('Premium: ' + userData.is_premium);
+
+                        sendToUnity(userData);
+                        return;
+
+                    } catch (e) {
+                        debugLog('Error parsing user JSON: ' + e);
+                    }
+                } else {
+                    debugLog('❌ No user parameter in tgWebAppData');
+                }
+
+                // Also check for other possible user data locations
+                const queryId = params.get('query_id');
+                const authDate = params.get('auth_date');
+                debugLog('Query ID: ' + queryId);
+                debugLog('Auth Date: ' + authDate);
+
+            } catch (e) {
+                debugLog('Error parsing tgWebAppData: ' + e);
             }
 
-            debugLog('❌ No user patterns found in string');
+            // If we get here, parsing failed
+            useFallback();
         }
 
-        function requestTelegramUserData() {
-            debugLog('Requesting user data from Telegram...');
-
-            // Try to post a message to request user data
-            if (window.TelegramWebviewProxy && typeof TelegramWebviewProxy.postMessage === 'function') {
-                try {
-                    // Common Telegram WebApp messages to request user data
-                    TelegramWebviewProxy.postMessage(JSON.stringify({
-                        eventType: 'web_app_request_user_data',
-                        eventData: {}
-                    }));
-                    debugLog('Posted request for user data');
-                } catch (e) {
-                    debugLog('Error posting message: ' + e);
-                }
-            }
-
-            // Set up listener for response
-            window.addEventListener('message', function (event) {
-                debugLog('Message received: ' + JSON.stringify(event.data));
-                if (event.data && event.data.user) {
-                    debugLog('✅ USER DATA FROM MESSAGE: ' + JSON.stringify(event.data.user));
-                    sendToUnity(event.data.user);
-                }
-            });
-
-            // Fallback - create generic user data
-            setTimeout(() => {
-                debugLog('Using fallback Telegram user data');
-                const fallbackUser = {
-                    id: Date.now(),
-                    username: 'telegram_user',
-                    first_name: 'Telegram',
-                    last_name: 'User',
-                    is_premium: false
-                };
-                sendToUnity(fallbackUser);
-            }, 3000);
+        function useFallback() {
+            debugLog('Using fallback Telegram user data');
+            const fallbackUser = {
+                id: Date.now(),
+                username: 'telegram_user',
+                first_name: 'Telegram',
+                last_name: 'User',
+                is_premium: false
+            };
+            sendToUnity(fallbackUser);
         }
 
         function sendToUnity(userData) {
@@ -251,7 +180,6 @@
                 debugLog('✅ Data sent to Unity!');
             } else {
                 debugLog('Unity not ready, storing data...');
-                // Store and retry
                 window.pendingUserData = userData;
                 setTimeout(() => sendToUnity(userData), 1000);
             }
@@ -259,10 +187,9 @@
 
         // START IMMEDIATELY
         window.addEventListener('DOMContentLoaded', function () {
-            debugLog('DOM loaded - scanning TelegramWebviewProxy');
-            setTimeout(getTelegramData, 1000);
+            debugLog('DOM loaded - parsing Telegram data from hash');
+            setTimeout(getTelegramData, 500);
 
-            // Your existing Unity loading code remains the same...
             const canvas = document.querySelector("#unity-canvas");
             const loadingElement = document.querySelector("#loading");
             const buildUrl = "Build";
@@ -314,7 +241,6 @@
                         try { window.playDeckBridge.init(unityInstance); } catch (e) { console.warn(e); }
                     }
 
-                    // Send any pending user data now that Unity is ready
                     if (window.pendingUserData) {
                         sendToUnity(window.pendingUserData);
                     }
@@ -336,7 +262,6 @@
             document.body.appendChild(script);
         });
 
-        // Override the function
         window.getTelegramUserFull = function (unityObjectName, callbackMethod) {
             debugLog('getTelegramUserFull called');
             getTelegramData();
