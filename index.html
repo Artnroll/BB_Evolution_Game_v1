@@ -5,6 +5,9 @@
     <title>BitBullz Evolution | Unity WebGL</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
+
+    <!-- AdsGram SDK (common host). Keep this first so SDK can load early.
+         If AdsGram gives a different script URL for you, replace this URL with theirs. -->
     <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
     <style>
@@ -35,134 +38,56 @@
             text-align: center;
             z-index: 10000;
         }
-
-        #debug-window {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            width: 400px;
-            background: rgba(0,0,0,0.9);
-            color: lime;
-            font-family: Arial;
-            font-size: 12px;
-            padding: 10px;
-            z-index: 10001;
-            border: 2px solid red;
-        }
     </style>
 </head>
 <body>
     <canvas id="unity-canvas" tabindex="-1"></canvas>
     <div id="loading">Loading...</div>
 
-    <div id="debug-window">
-        <div style="color: yellow; font-weight: bold;">TELEGRAM DATA:</div>
-        <div id="debug-content">Checking...</div>
-    </div>
-
+    <!-- PlayDeck bridge (our unified bridge) -->
     <script src="playdeckBridge.js"></script>
+
     <script>
-        function debugLog(msg) {
-            const content = document.getElementById('debug-content');
-            if (content) content.innerHTML += msg + '<br>';
-            console.log(msg);
-        }
-
         function getTelegramData() {
-            debugLog('--- PARSING tgWebAppData FROM HASH ---');
-
-            // FOCUS ON THE HASH - it contains tgWebAppData!
+            // Parse Telegram data from hash
             if (window.location.hash) {
-                const hash = window.location.hash.substring(1); // Remove #
-                debugLog('Raw hash: ' + hash.substring(0, 200) + '...');
+                const hash = window.location.hash.substring(1);
 
                 try {
-                    // tgWebAppData is usually URL-encoded parameters
-                    // Format: tgWebAppData=query_id=...&user=...&auth_date=...&hash=...
                     const params = new URLSearchParams(hash);
-
-                    debugLog('--- URL PARAMETERS FROM HASH ---');
-                    for (let [key, value] of params.entries()) {
-                        debugLog(key + ': ' + value.substring(0, 100));
-                    }
-
-                    // Check if we have tgWebAppData parameter
                     const tgWebAppData = params.get('tgWebAppData');
+
                     if (tgWebAppData) {
-                        debugLog('✅ Found tgWebAppData parameter!');
-                        parseTgWebAppData(tgWebAppData);
-                        return;
+                        const tgParams = new URLSearchParams(tgWebAppData);
+                        const userParam = tgParams.get('user');
+
+                        if (userParam) {
+                            const decodedUser = decodeURIComponent(userParam);
+                            const userData = JSON.parse(decodedUser);
+                            sendToUnity(userData);
+                            return;
+                        }
                     }
 
-                    // If no tgWebAppData param, maybe the entire hash IS tgWebAppData
-                    debugLog('--- PARSING HASH AS tgWebAppData DIRECTLY ---');
-                    parseTgWebAppData(hash);
-
-                } catch (e) {
-                    debugLog('Error parsing hash: ' + e);
-                }
-            } else {
-                debugLog('❌ No hash found');
-                useFallback();
-            }
-        }
-
-        function parseTgWebAppData(tgWebAppData) {
-            debugLog('Parsing tgWebAppData: ' + tgWebAppData.substring(0, 200) + '...');
-
-            try {
-                // tgWebAppData is URL-encoded string of parameters
-                const params = new URLSearchParams(tgWebAppData);
-
-                debugLog('--- tgWebAppData PARAMETERS ---');
-                for (let [key, value] of params.entries()) {
-                    debugLog(key + ': ' + (key === 'user' ? 'USER_DATA!' : value.substring(0, 100)));
-                }
-
-                // The user data is in the 'user' parameter as URL-encoded JSON
-                const userParam = params.get('user');
-                if (userParam) {
-                    debugLog('✅ Found user parameter!');
-
-                    try {
-                        // URL-decode then parse JSON
+                    // If no tgWebAppData param, try parsing hash directly
+                    const tgParams = new URLSearchParams(hash);
+                    const userParam = tgParams.get('user');
+                    if (userParam) {
                         const decodedUser = decodeURIComponent(userParam);
-                        debugLog('Decoded user: ' + decodedUser);
-
                         const userData = JSON.parse(decodedUser);
-                        debugLog('✅ PARSED USER DATA:');
-                        debugLog('ID: ' + userData.id);
-                        debugLog('Username: @' + (userData.username || 'none'));
-                        debugLog('First Name: ' + userData.first_name);
-                        debugLog('Last Name: ' + userData.last_name);
-                        debugLog('Premium: ' + userData.is_premium);
-
                         sendToUnity(userData);
                         return;
-
-                    } catch (e) {
-                        debugLog('Error parsing user JSON: ' + e);
                     }
-                } else {
-                    debugLog('❌ No user parameter in tgWebAppData');
+                } catch (e) {
+                    console.log('Error parsing Telegram data:', e);
                 }
-
-                // Also check for other possible user data locations
-                const queryId = params.get('query_id');
-                const authDate = params.get('auth_date');
-                debugLog('Query ID: ' + queryId);
-                debugLog('Auth Date: ' + authDate);
-
-            } catch (e) {
-                debugLog('Error parsing tgWebAppData: ' + e);
             }
 
-            // If we get here, parsing failed
+            // Fallback if no Telegram data found
             useFallback();
         }
 
         function useFallback() {
-            debugLog('Using fallback Telegram user data');
             const fallbackUser = {
                 id: Date.now(),
                 username: 'telegram_user',
@@ -174,26 +99,26 @@
         }
 
         function sendToUnity(userData) {
-            debugLog('Sending to Unity: ' + JSON.stringify(userData));
             if (window.unityInstance && typeof window.unityInstance.SendMessage === 'function') {
                 window.unityInstance.SendMessage('LoginManager', 'OnTelegramUserFullReceived', JSON.stringify(userData));
-                debugLog('✅ Data sent to Unity!');
             } else {
-                debugLog('Unity not ready, storing data...');
                 window.pendingUserData = userData;
                 setTimeout(() => sendToUnity(userData), 1000);
             }
         }
 
-        // START IMMEDIATELY
+        // wait DOMContentLoaded to create unity instance
         window.addEventListener('DOMContentLoaded', function () {
-            debugLog('DOM loaded - parsing Telegram data from hash');
-            setTimeout(getTelegramData, 500);
-
             const canvas = document.querySelector("#unity-canvas");
             const loadingElement = document.querySelector("#loading");
             const buildUrl = "Build";
             const loaderUrl = buildUrl + "/WebglBuild.loader.js";
+
+            function setAdsStatus(text, color) {
+                if (!adsStatus) return;
+                adsStatus.innerHTML = text;
+                if (color) adsStatus.style.background = color;
+            }
 
             const hideLoading = () => {
                 if (loadingElement) loadingElement.style.display = 'none';
@@ -216,6 +141,7 @@
                     if (type === 'progress') {
                         const progressPercent = Math.round(msg * 100);
                         if (loadingElement) loadingElement.innerHTML = `Loading... ${progressPercent}%`;
+                        // keep PlayDeck.SetLoading compatibility if used
                         if (window.PlayDeck_SetLoading) {
                             try { window.PlayDeck_SetLoading(progressPercent); } catch (e) { }
                         }
@@ -233,37 +159,42 @@
                         try { window.PlayDeck_SetLoading(progressPercent); } catch (e) { }
                     }
                 }).then((unityInstance) => {
-                    debugLog('✅ Unity loaded');
+                    console.log("Unity loaded");
                     window.unityInstance = unityInstance;
                     hideLoading();
 
+                    // give the bridge the unity instance if it has init method
                     if (window.playDeckBridge && typeof window.playDeckBridge.init === 'function') {
                         try { window.playDeckBridge.init(unityInstance); } catch (e) { console.warn(e); }
                     }
 
-                    if (window.pendingUserData) {
-                        sendToUnity(window.pendingUserData);
+                    // Get Telegram data after Unity loads
+                    setTimeout(getTelegramData, 500);
+
+                    // Force get Telegram username once loaded (safe if function exists)
+                    if (typeof window.getTelegramUsername === 'function') {
+                        try { window.getTelegramUsername('LoginManager', 'OnUsernameReceived'); } catch (e) { }
                     }
                 }).catch(err => {
-                    debugLog('❌ Unity failed: ' + err);
+                    console.error("Unity create failed:", err);
                     if (loadingElement) {
-                        loadingElement.innerHTML = "Failed to load.";
+                        loadingElement.innerHTML = "Failed to load. Open console for details.";
                         loadingElement.style.color = "red";
                     }
                 });
             };
             script.onerror = (err) => {
-                debugLog('❌ Loader failed: ' + err);
+                console.error("Failed loading Unity loader:", err);
                 if (loadingElement) {
-                    loadingElement.innerHTML = "Failed to load.";
+                    loadingElement.innerHTML = "Failed to load. Refresh the page.";
                     loadingElement.style.color = "red";
                 }
             };
             document.body.appendChild(script);
         });
 
+        // Override the function to use our method
         window.getTelegramUserFull = function (unityObjectName, callbackMethod) {
-            debugLog('getTelegramUserFull called');
             getTelegramData();
         };
     </script>
