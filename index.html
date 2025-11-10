@@ -41,13 +41,13 @@
             top: 10px;
             left: 10px;
             width: 400px;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.9);
             color: lime;
             font-family: Arial;
             font-size: 12px;
             padding: 10px;
             z-index: 10001;
-            border: 1px solid lime;
+            border: 2px solid red;
         }
     </style>
 </head>
@@ -56,8 +56,8 @@
     <div id="loading">Loading...</div>
 
     <div id="debug-window">
-        <div><strong>Debug Info:</strong></div>
-        <div id="debug-content"></div>
+        <div style="color: yellow; font-weight: bold;">TELEGRAM DATA:</div>
+        <div id="debug-content">Checking...</div>
     </div>
 
     <script src="playdeckBridge.js"></script>
@@ -68,58 +68,66 @@
             console.log(msg);
         }
 
-        // Check ALL possible ways to get Telegram data
-        function checkAllTelegramMethods() {
-            debugLog('=== CHECKING ALL METHODS ===');
+        // SIMPLE TELEGRAM DATA EXTRACTION
+        function getTelegramData() {
+            debugLog('--- GETTING TELEGRAM DATA ---');
 
-            // Method 1: Standard Telegram WebApp
-            if (window.Telegram?.WebApp) {
-                debugLog('✓ METHOD 1: Telegram WebApp');
+            // Method 1: Direct Telegram WebApp access
+            if (window.Telegram && Telegram.WebApp) {
+                debugLog('✓ Using Telegram WebApp API');
                 const user = Telegram.WebApp.initDataUnsafe?.user;
                 if (user) {
-                    debugLog('USER: ' + user.username + ' (ID: ' + user.id + ')');
-                    return user;
+                    debugLog('✅ TELEGRAM USER FOUND!');
+                    debugLog('ID: ' + user.id);
+                    debugLog('Username: @' + (user.username || 'none'));
+                    debugLog('Name: ' + (user.first_name || '') + ' ' + (user.last_name || ''));
+                    debugLog('Premium: ' + (user.is_premium ? 'YES' : 'NO'));
+
+                    // SEND TO UNITY IMMEDIATELY
+                    if (window.unityInstance && typeof window.unityInstance.SendMessage === 'function') {
+                        const userData = {
+                            id: user.id,
+                            username: user.username || "",
+                            first_name: user.first_name || "",
+                            last_name: user.last_name || "",
+                            is_premium: user.is_premium || false
+                        };
+                        window.unityInstance.SendMessage('LoginManager', 'OnTelegramUserFullReceived', JSON.stringify(userData));
+                        debugLog('✅ Data sent to Unity!');
+                    }
+                    return;
                 }
             }
 
-            // Method 2: Check URL parameters (common in Mini Apps)
+            // Method 2: Check URL parameters (fallback)
             const urlParams = new URLSearchParams(window.location.search);
-            debugLog('URL Params: ' + Array.from(urlParams.keys()).join(', '));
-
-            // Method 3: Check for tgWebAppData in URL
             const tgWebAppData = urlParams.get('tgWebAppData');
             if (tgWebAppData) {
-                debugLog('✓ METHOD 2: tgWebAppData in URL');
+                debugLog('✓ Found tgWebAppData in URL');
                 try {
-                    const decoded = JSON.parse(atob(tgWebAppData));
-                    debugLog('tgWebAppData: ' + JSON.stringify(decoded).substring(0, 100));
+                    const decoded = decodeURIComponent(tgWebAppData);
+                    debugLog('Raw data: ' + decoded.substring(0, 100));
                 } catch (e) {
-                    debugLog('Error decoding tgWebAppData');
+                    debugLog('Error decoding: ' + e);
                 }
             }
 
-            // Method 4: Check for initData in URL
-            const initData = urlParams.get('initData');
-            if (initData) {
-                debugLog('✓ METHOD 3: initData in URL');
-                debugLog('initData: ' + initData.substring(0, 100));
+            // Method 3: Last resort - check initData
+            if (window.Telegram?.WebApp?.initData) {
+                debugLog('✓ Found initData: ' + window.Telegram.WebApp.initData.substring(0, 100));
             }
 
-            // Method 5: Check for any Telegram-related globals
-            debugLog('=== GLOBALS CHECK ===');
-            for (let key in window) {
-                if (key.toLowerCase().includes('telegram') || key.toLowerCase().includes('tg')) {
-                    debugLog('Global: ' + key + ' = ' + typeof window[key]);
-                }
-            }
+            debugLog('❌ No user data found yet - retrying...');
 
-            debugLog('✗ NO TELEGRAM DATA FOUND');
-            debugLog('This is a regular web page, not a Telegram Mini App');
-            return null;
+            // Keep trying every second
+            setTimeout(getTelegramData, 1000);
         }
 
+        // START IMMEDIATELY
         window.addEventListener('DOMContentLoaded', function () {
-            // Your existing Unity loading code...
+            debugLog('DOM loaded - starting Telegram scan');
+            setTimeout(getTelegramData, 500);
+
             const canvas = document.querySelector("#unity-canvas");
             const loadingElement = document.querySelector("#loading");
             const buildUrl = "Build";
@@ -163,7 +171,7 @@
                         try { window.PlayDeck_SetLoading(progressPercent); } catch (e) { }
                     }
                 }).then((unityInstance) => {
-                    console.log("Unity loaded");
+                    debugLog('✅ Unity loaded - instance ready');
                     window.unityInstance = unityInstance;
                     hideLoading();
 
@@ -171,14 +179,10 @@
                         try { window.playDeckBridge.init(unityInstance); } catch (e) { console.warn(e); }
                     }
 
-                    // Check for Telegram data
-                    setTimeout(checkAllTelegramMethods, 1000);
-
-                    if (typeof window.getTelegramUsername === 'function') {
-                        try { window.getTelegramUsername('LoginManager', 'OnUsernameReceived'); } catch (e) { }
-                    }
+                    // Force get Telegram data again now that Unity is ready
+                    setTimeout(getTelegramData, 1000);
                 }).catch(err => {
-                    console.error("Unity create failed:", err);
+                    debugLog('❌ Unity failed: ' + err);
                     if (loadingElement) {
                         loadingElement.innerHTML = "Failed to load. Open console for details.";
                         loadingElement.style.color = "red";
@@ -186,7 +190,7 @@
                 });
             };
             script.onerror = (err) => {
-                console.error("Failed loading Unity loader:", err);
+                debugLog('❌ Loader failed: ' + err);
                 if (loadingElement) {
                     loadingElement.innerHTML = "Failed to load. Refresh the page.";
                     loadingElement.style.color = "red";
@@ -194,6 +198,12 @@
             };
             document.body.appendChild(script);
         });
+
+        // OVERRIDE the getTelegramUserFull function to use our method
+        window.getTelegramUserFull = function (unityObjectName, callbackMethod) {
+            debugLog('🔧 getTelegramUserFull called - scanning for data...');
+            getTelegramData();
+        };
     </script>
 </body>
 </html>
