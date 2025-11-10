@@ -68,65 +68,113 @@
             console.log(msg);
         }
 
-        // SIMPLE TELEGRAM DATA EXTRACTION
+        // NEW APPROACH: Check everything without relying on Telegram.WebApp
         function getTelegramData() {
-            debugLog('--- GETTING TELEGRAM DATA ---');
+            debugLog('--- SCANNING FOR ANY TELEGRAM DATA ---');
 
-            // Method 1: Direct Telegram WebApp access
-            if (window.Telegram && Telegram.WebApp) {
-                debugLog('✓ Using Telegram WebApp API');
-                const user = Telegram.WebApp.initDataUnsafe?.user;
-                if (user) {
-                    debugLog('✅ TELEGRAM USER FOUND!');
-                    debugLog('ID: ' + user.id);
-                    debugLog('Username: @' + (user.username || 'none'));
-                    debugLog('Name: ' + (user.first_name || '') + ' ' + (user.last_name || ''));
-                    debugLog('Premium: ' + (user.is_premium ? 'YES' : 'NO'));
+            let foundData = false;
 
-                    // SEND TO UNITY IMMEDIATELY
-                    if (window.unityInstance && typeof window.unityInstance.SendMessage === 'function') {
-                        const userData = {
-                            id: user.id,
-                            username: user.username || "",
-                            first_name: user.first_name || "",
-                            last_name: user.last_name || "",
-                            is_premium: user.is_premium || false
-                        };
-                        window.unityInstance.SendMessage('LoginManager', 'OnTelegramUserFullReceived', JSON.stringify(userData));
-                        debugLog('✅ Data sent to Unity!');
-                    }
-                    return;
+            // METHOD 1: Check if we're even in Telegram
+            const isInTelegram = /Telegram|WebApp|tg/i.test(navigator.userAgent) ||
+                window.location.href.includes('t.me') ||
+                document.referrer.includes('t.me');
+
+            debugLog('In Telegram: ' + isInTelegram);
+            debugLog('User Agent: ' + navigator.userAgent.substring(0, 50));
+
+            // METHOD 2: Check ALL window properties for Telegram data
+            debugLog('--- Checking window properties ---');
+            for (let key in window) {
+                if (key.toLowerCase().includes('telegram') || key.toLowerCase().includes('tg')) {
+                    debugLog('Found: ' + key + ' = ' + typeof window[key]);
+                    foundData = true;
                 }
             }
 
-            // Method 2: Check URL parameters (fallback)
+            // METHOD 3: Check URL parameters (Telegram often passes data here)
             const urlParams = new URLSearchParams(window.location.search);
-            const tgWebAppData = urlParams.get('tgWebAppData');
-            if (tgWebAppData) {
-                debugLog('✓ Found tgWebAppData in URL');
-                try {
-                    const decoded = decodeURIComponent(tgWebAppData);
-                    debugLog('Raw data: ' + decoded.substring(0, 100));
-                } catch (e) {
-                    debugLog('Error decoding: ' + e);
+            debugLog('--- URL Parameters ---');
+            for (let [key, value] of urlParams.entries()) {
+                debugLog(key + ': ' + value.substring(0, 50));
+                if (key.toLowerCase().includes('user') || key.toLowerCase().includes('id') || key.toLowerCase().includes('data')) {
+                    foundData = true;
                 }
             }
 
-            // Method 3: Last resort - check initData
-            if (window.Telegram?.WebApp?.initData) {
-                debugLog('✓ Found initData: ' + window.Telegram.WebApp.initData.substring(0, 100));
+            // METHOD 4: Check hash parameters
+            if (window.location.hash) {
+                debugLog('Hash: ' + window.location.hash.substring(0, 100));
             }
 
-            debugLog('❌ No user data found yet - retrying...');
+            // METHOD 5: Check document.referrer
+            if (document.referrer) {
+                debugLog('Referrer: ' + document.referrer);
+            }
 
-            // Keep trying every second
-            setTimeout(getTelegramData, 1000);
+            // METHOD 6: Try to access Telegram if it exists (but don't rely on it)
+            try {
+                if (window.Telegram) {
+                    debugLog('⚡ Telegram global exists!');
+                    if (window.Telegram.WebApp) {
+                        debugLog('⚡ Telegram.WebApp exists!');
+                        const user = window.Telegram.WebApp.initDataUnsafe?.user;
+                        if (user) {
+                            debugLog('✅ USER FOUND VIA WEBAPP!');
+                            debugLog('ID: ' + user.id);
+                            debugLog('Username: @' + user.username);
+                            sendToUnity(user);
+                            return;
+                        }
+                    }
+                }
+            } catch (e) {
+                debugLog('Telegram access error: ' + e);
+            }
+
+            // METHOD 7: Last resort - check for common Telegram data patterns
+            debugLog('--- Checking for hidden data ---');
+
+            // Check if there's any data in localStorage/sessionStorage from Telegram
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.toLowerCase().includes('telegram')) {
+                    debugLog('LocalStorage: ' + key + ' = ' + localStorage.getItem(key));
+                }
+            }
+
+            if (!foundData) {
+                debugLog('❌ NO TELEGRAM DATA FOUND IN ANY METHOD');
+                debugLog('This is a regular web page without Telegram API');
+                debugLog('Bot button might be opening as regular webview');
+
+                // Create fallback user data
+                const fallbackUser = {
+                    id: Math.floor(Math.random() * 1000000),
+                    username: 'telegram_user',
+                    first_name: 'Telegram',
+                    last_name: 'User',
+                    is_premium: false
+                };
+                debugLog('Using fallback data with ID: ' + fallbackUser.id);
+                sendToUnity(fallbackUser);
+            }
+        }
+
+        function sendToUnity(userData) {
+            debugLog('Sending to Unity: ' + JSON.stringify(userData));
+            if (window.unityInstance && typeof window.unityInstance.SendMessage === 'function') {
+                window.unityInstance.SendMessage('LoginManager', 'OnTelegramUserFullReceived', JSON.stringify(userData));
+                debugLog('✅ Data sent to Unity!');
+            } else {
+                debugLog('❌ Unity not ready yet, will retry...');
+                setTimeout(() => sendToUnity(userData), 1000);
+            }
         }
 
         // START IMMEDIATELY
         window.addEventListener('DOMContentLoaded', function () {
-            debugLog('DOM loaded - starting Telegram scan');
-            setTimeout(getTelegramData, 500);
+            debugLog('DOM loaded - starting scan');
+            setTimeout(getTelegramData, 1000);
 
             const canvas = document.querySelector("#unity-canvas");
             const loadingElement = document.querySelector("#loading");
@@ -171,20 +219,17 @@
                         try { window.PlayDeck_SetLoading(progressPercent); } catch (e) { }
                     }
                 }).then((unityInstance) => {
-                    debugLog('✅ Unity loaded - instance ready');
+                    debugLog('✅ Unity loaded');
                     window.unityInstance = unityInstance;
                     hideLoading();
 
                     if (window.playDeckBridge && typeof window.playDeckBridge.init === 'function') {
                         try { window.playDeckBridge.init(unityInstance); } catch (e) { console.warn(e); }
                     }
-
-                    // Force get Telegram data again now that Unity is ready
-                    setTimeout(getTelegramData, 1000);
                 }).catch(err => {
                     debugLog('❌ Unity failed: ' + err);
                     if (loadingElement) {
-                        loadingElement.innerHTML = "Failed to load. Open console for details.";
+                        loadingElement.innerHTML = "Failed to load.";
                         loadingElement.style.color = "red";
                     }
                 });
@@ -192,16 +237,16 @@
             script.onerror = (err) => {
                 debugLog('❌ Loader failed: ' + err);
                 if (loadingElement) {
-                    loadingElement.innerHTML = "Failed to load. Refresh the page.";
+                    loadingElement.innerHTML = "Failed to load.";
                     loadingElement.style.color = "red";
                 }
             };
             document.body.appendChild(script);
         });
 
-        // OVERRIDE the getTelegramUserFull function to use our method
+        // Override the function
         window.getTelegramUserFull = function (unityObjectName, callbackMethod) {
-            debugLog('🔧 getTelegramUserFull called - scanning for data...');
+            debugLog('getTelegramUserFull called');
             getTelegramData();
         };
     </script>
