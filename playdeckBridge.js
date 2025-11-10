@@ -417,12 +417,12 @@
                         last_name: u.last_name || "",
                         is_premium: !!u.is_premium
                     };
-                    sendToUnity(unityObjectName, callbackMethod, JSON.stringify(data));
-                    safeLog("Sent Telegram user data:", data);
+                    SendMessage(unityObjectName, callbackMethod, JSON.stringify(data));
+                    console.log("Sent Telegram user data:", data);
                     return true;
                 }
             } catch (e) {
-                safeWarn('getTelegramUserFull error', e);
+                console.warn('getTelegramUserFull error', e);
             }
             return false;
         }
