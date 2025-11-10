@@ -39,21 +39,19 @@
             z-index: 10000;
         }
 
-        /* Simple Debug Console */
-        #debug-console {
+        /* SIMPLE DEBUG WINDOW */
+        #debug-window {
             position: fixed;
             top: 10px;
             left: 10px;
-            width: 400px;
-            height: 200px;
-            background: rgba(0, 0, 0, 0.8);
-            border: 1px solid #00ff00;
-            color: #00ff00;
-            font-family: 'Courier New', monospace;
+            width: 300px;
+            background: rgba(0,0,0,0.8);
+            color: lime;
+            font-family: Arial;
             font-size: 12px;
-            padding: 5px;
-            overflow-y: auto;
+            padding: 10px;
             z-index: 10001;
+            border: 1px solid lime;
         }
     </style>
 </head>
@@ -61,88 +59,48 @@
     <canvas id="unity-canvas" tabindex="-1"></canvas>
     <div id="loading">Loading...</div>
 
-    <!-- Simple Debug Console -->
-    <div id="debug-console"></div>
+    <!-- SIMPLE DEBUG WINDOW -->
+    <div id="debug-window">
+        <div>Telegram Debug:</div>
+        <div id="debug-content"></div>
+    </div>
 
     <!-- PlayDeck bridge (our unified bridge) -->
     <script src="playdeckBridge.js"></script>
 
     <script>
-        // Simple debug logging function
-        function debugLog(message) {
-            const console = document.getElementById('debug-console');
-            if (console) {
-                const div = document.createElement('div');
-                div.textContent = message;
-                console.appendChild(div);
-                console.scrollTop = console.scrollHeight;
+        // Simple debug function
+        function debugLog(msg) {
+            const content = document.getElementById('debug-content');
+            if (content) {
+                content.innerHTML += msg + '<br>';
             }
-            // Also log to real console
-            if (window.console) {
-                console.log(message);
-            }
+            console.log(msg);
         }
 
-        // Check Telegram environment
-        function checkTelegramEnvironment() {
-            debugLog("=== Checking Telegram Environment ===");
+        // Check Telegram info
+        function checkTelegram() {
+            debugLog('Checking Telegram...');
 
-            // Check for Telegram WebApp
-            if (window.Telegram && window.Telegram.WebApp) {
-                debugLog("✓ Telegram WebApp found");
-                debugLog("Platform: " + (window.Telegram.WebApp.platform || "unknown"));
-                debugLog("Version: " + (window.Telegram.WebApp.version || "unknown"));
+            if (window.Telegram && Telegram.WebApp) {
+                debugLog('✓ Telegram WebApp found');
+                debugLog('Platform: ' + (Telegram.WebApp.platform || 'unknown'));
 
-                // Check for user data
-                if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-                    const user = window.Telegram.WebApp.initDataUnsafe.user;
-                    debugLog("✓ Telegram User Data Found:");
-                    debugLog("  ID: " + user.id);
-                    debugLog("  Username: " + (user.username || "none"));
-                    debugLog("  Name: " + (user.first_name || "") + " " + (user.last_name || ""));
-                    debugLog("  Premium: " + (user.is_premium ? "yes" : "no"));
-                    return true;
+                if (Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user) {
+                    const user = Telegram.WebApp.initDataUnsafe.user;
+                    debugLog('✓ User data found');
+                    debugLog('Username: ' + (user.username || 'none'));
+                    debugLog('ID: ' + user.id);
                 } else {
-                    debugLog("✗ No user data in initDataUnsafe");
-                    debugLog("initDataUnsafe: " + JSON.stringify(window.Telegram.WebApp.initDataUnsafe));
+                    debugLog('✗ No user data');
                 }
             } else {
-                debugLog("✗ Telegram WebApp not found");
+                debugLog('✗ No Telegram WebApp');
             }
-
-            // Check for other Telegram globals
-            let foundGlobals = [];
-            for (let key in window) {
-                if (key.toLowerCase().includes('telegram') || key.toLowerCase().includes('tg')) {
-                    foundGlobals.push(key);
-                }
-            }
-            if (foundGlobals.length > 0) {
-                debugLog("Other Telegram globals: " + foundGlobals.join(', '));
-            }
-
-            return false;
-        }
-
-        // Enhanced getTelegramUserFull with debug logging
-        if (typeof window.getTelegramUserFull === 'function') {
-            const originalGetTelegramUserFull = window.getTelegramUserFull;
-            window.getTelegramUserFull = function (unityObjectName, callbackMethod) {
-                debugLog("getTelegramUserFull called: " + unityObjectName + "." + callbackMethod);
-                return originalGetTelegramUserFull.call(this, unityObjectName, callbackMethod);
-            };
         }
 
         // wait DOMContentLoaded to create unity instance
         window.addEventListener('DOMContentLoaded', function () {
-            debugLog("DOM Content Loaded - Starting Unity...");
-
-            // Check Telegram environment after a short delay
-            setTimeout(() => {
-                debugLog("--- Telegram Environment Check ---");
-                checkTelegramEnvironment();
-            }, 1000);
-
             const canvas = document.querySelector("#unity-canvas");
             const loadingElement = document.querySelector("#loading");
             const buildUrl = "Build";
@@ -186,7 +144,6 @@
             const script = document.createElement("script");
             script.src = loaderUrl;
             script.onload = () => {
-                debugLog("Unity loader loaded, creating instance...");
                 createUnityInstance(canvas, config, (progress) => {
                     const progressPercent = Math.round(progress * 100);
                     if (loadingElement) loadingElement.innerHTML = `Loading... ${progressPercent}%`;
@@ -194,33 +151,24 @@
                         try { window.PlayDeck_SetLoading(progressPercent); } catch (e) { }
                     }
                 }).then((unityInstance) => {
-                    debugLog("✓ Unity loaded successfully");
+                    console.log("Unity loaded");
                     window.unityInstance = unityInstance;
                     hideLoading();
 
                     // give the bridge the unity instance if it has init method
                     if (window.playDeckBridge && typeof window.playDeckBridge.init === 'function') {
-                        try {
-                            window.playDeckBridge.init(unityInstance);
-                            debugLog("✓ PlayDeck bridge initialized");
-                        } catch (e) {
-                            debugLog("✗ PlayDeck bridge error: " + e);
-                        }
+                        try { window.playDeckBridge.init(unityInstance); } catch (e) { console.warn(e); }
                     }
 
+                    // Check Telegram after Unity loads
+                    setTimeout(checkTelegram, 1000);
+
                     // Force get Telegram username once loaded (safe if function exists)
-                    if (typeof window.getTelegramUserFull === 'function') {
-                        try {
-                            window.getTelegramUserFull('LoginManager', 'OnTelegramUserFullReceived');
-                            debugLog("getTelegramUserFull called for LoginManager");
-                        } catch (e) {
-                            debugLog("getTelegramUserFull error: " + e);
-                        }
-                    } else {
-                        debugLog("✗ getTelegramUserFull function not found");
+                    if (typeof window.getTelegramUsername === 'function') {
+                        try { window.getTelegramUsername('LoginManager', 'OnUsernameReceived'); } catch (e) { }
                     }
                 }).catch(err => {
-                    debugLog("✗ Unity create failed: " + err);
+                    console.error("Unity create failed:", err);
                     if (loadingElement) {
                         loadingElement.innerHTML = "Failed to load. Open console for details.";
                         loadingElement.style.color = "red";
@@ -228,7 +176,7 @@
                 });
             };
             script.onerror = (err) => {
-                debugLog("✗ Failed loading Unity loader: " + err);
+                console.error("Failed loading Unity loader:", err);
                 if (loadingElement) {
                     loadingElement.innerHTML = "Failed to load. Refresh the page.";
                     loadingElement.style.color = "red";
