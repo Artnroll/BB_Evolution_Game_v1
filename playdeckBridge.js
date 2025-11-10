@@ -405,30 +405,35 @@
     }, 700);
 
     // Telegram username helper (unchanged)
-    window.getTelegramUsername = function (unityObjectName, callbackMethod) {
-        safeLog('getTelegramUsername called');
-        function sendIfReady() {
+    window.getTelegramUserFull = function (unityObjectName, callbackMethod) {
+        function trySend() {
             try {
-                if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-                    const user = window.Telegram.WebApp.initDataUnsafe.user;
-                    const username = user.username ? user.username : (user.first_name || ("Player_" + user.id));
-                    sendToUnity(unityObjectName, callbackMethod, username);
-                    safeLog('getTelegramUsername: sent username ->', username);
+                const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
+                if (u) {
+                    const data = {
+                        id: u.id,
+                        username: u.username || "",
+                        first_name: u.first_name || "",
+                        last_name: u.last_name || "",
+                        is_premium: !!u.is_premium
+                    };
+                    sendToUnity(unityObjectName, callbackMethod, JSON.stringify(data));
+                    safeLog("Sent Telegram user data:", data);
                     return true;
                 }
             } catch (e) {
-                safeWarn('getTelegramUsername error', e);
+                safeWarn('getTelegramUserFull error', e);
             }
             return false;
         }
-        if (sendIfReady()) return;
+
+        if (trySend()) return;
+
         let tries = 0;
-        const max = 8;
-        const t = setInterval(() => {
+        const interval = setInterval(() => {
             tries++;
-            if (sendIfReady() || tries >= max) {
-                clearInterval(t);
-                if (tries >= max) safeWarn('getTelegramUsername: giving up after retries');
+            if (trySend() || tries >= 8) {
+                clearInterval(interval);
             }
         }, 700);
     };
