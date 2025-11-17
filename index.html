@@ -146,14 +146,6 @@
                 productVersion: "0.4",
                 devicePixelRatio: pixelRatioCap,
                 showBanner: (msg, type) => {
-                    if (type === 'progress') {
-                        const progressPercent = Math.round(msg * 100);
-                        if (loadingElement) loadingElement.innerHTML = `Loading... ${progressPercent}%`;
-                        // keep PlayDeck.SetLoading compatibility if used
-                        if (window.PlayDeck_SetLoading) {
-                            try { window.PlayDeck_SetLoading(progressPercent); } catch (e) { }
-                        }
-                    }
                 }
             };
 
@@ -162,7 +154,6 @@
             script.onload = () => {
                 createUnityInstance(canvas, config, (progress) => {
                     const progressPercent = Math.round(progress * 100);
-                    if (loadingElement) loadingElement.innerHTML = `Loading... ${progressPercent}%`;
                     if (window.PlayDeck_SetLoading) {
                         try { window.PlayDeck_SetLoading(progressPercent); } catch (e) { }
                     }
