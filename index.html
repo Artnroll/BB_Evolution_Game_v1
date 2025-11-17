@@ -29,20 +29,46 @@
         }
 
         #loading {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+           position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            flex-direction: column;
+        }
+
+        #loading img#loading-logo {
+            width: 50%; /* adjust as needed */
+            max-width: 600px;
+            height: auto;
+            object-fit: contain;
+            animation: pulse 1.5s infinite;
+        }
+
+         #loading p {
             color: white;
             font-family: Arial, sans-serif;
-            text-align: center;
-            z-index: 10000;
+            font-size: 1.2em;
+            margin-top: 20px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
     </style>
 </head>
 <body>
     <canvas id="unity-canvas" tabindex="-1"></canvas>
-    <div id="loading">Loading...</div>
+     <div id="loading">
+        <img id="loading-logo" src="TemplateData/Panel_7.png" alt="Loading...">
+        <p>Loading BitBullz Evolution...</p>
+      </div>
 
     <!-- PlayDeck bridge (our unified bridge) -->
     <script src="playdeckBridge.js"></script>
