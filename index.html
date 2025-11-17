@@ -38,37 +38,19 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            z-index: 10000;
-            flex-direction: column;
         }
 
-        #loading img#loading-logo {
-            width: 50%; /* adjust as needed */
-            max-width: 600px;
+        #loading img {
+            max-width: 60%;
             height: auto;
-            object-fit: contain;
-            animation: pulse 1.5s infinite;
-        }
-
-         #loading p {
-            color: white;
-            font-family: Arial, sans-serif;
-            font-size: 1.2em;
-            margin-top: 20px;
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
         }
     </style>
 </head>
 <body>
     <canvas id="unity-canvas" tabindex="-1"></canvas>
-     <div id="loading">
-        <img id="loading-logo" src="TemplateData/Panel_7.png" alt="Loading...">
-        <p>Loading BitBullz Evolution...</p>
-      </div>
+      <div id="loading">
+        <img src="TemplateData/Panel_7.png" alt="Loading...">
+    </div>
 
     <!-- PlayDeck bridge (our unified bridge) -->
     <script src="playdeckBridge.js"></script>
