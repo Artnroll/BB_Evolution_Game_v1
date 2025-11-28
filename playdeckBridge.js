@@ -126,7 +126,7 @@
             try {
                 safeLog('Calling backend to create invoice...');
 
-                const response = await fetch(`${this.BACKEND_URL}/create-invoice-link`, {                    method: 'POST',
+                const response = await fetch(`${this.BACKEND_URL}/create-invoice-link`, {                 
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
