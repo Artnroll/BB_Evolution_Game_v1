@@ -150,8 +150,8 @@
                 const result = await response.json();
                 safeLog('Backend response:', result);
 
-                if (result.success && result.invoice_Link) {
-                    return result.invoice_Link;
+                if (result.success && result.invoice_link) {
+                    return result.invoice_link;
                 } else {
                     throw new Error(result.error || 'Failed to create invoice');
                 }
