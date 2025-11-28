@@ -106,22 +106,32 @@
             try {
                 safeLog('Creating invoice via backend');
 
-                // call backend to create telegram invoice
-                const result = await this.createInvoiceViaBackend(userId, itemId, starsCost, itemName, itemDescription);
-                return result;
+                // get invoice from backend
+                const invoiceLink = await this.createInvoiceViaBackend(userId, itemId, starsCost, itemName, itemDescription);
+                if (!invoiceLink) {
+                    return { success: false, error: 'Failed to create invoice'};
+                }
+
+                safeLog('Invoice link received, opening popup...');
+
+                // open payment popup inside the game
+                const paymentResult = await this.openPaymentPopup(invoiceLink);
+                return paymentResult;
+
             } catch (error) {
                 safeError('Telegram Stars: Purchase error', error)
                 return {success: false, error: error.message};
             }
         },
 
-        // create invoice by calling our backend
+        // create invoice and get the link
         async createInvoiceViaBackend(userId, itemId, starsCost, itemName, itemDescription) {
             try {
                 safeLog('Calling backend to create invoice...');
 
-                const response = await fetch(`${this.BACKEND_URL}/create-invoice`, {                    method: 'POST',
-                    headers:{
+                const response = await fetch(`${this.BACKEND_URL}/create-invoice-link`, {                    method: 'POST',
+                    method: 'POST',
+                    headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
@@ -140,29 +150,58 @@
                 const result = await response.json();
                 safeLog('Backend response:', result);
 
-                if (result.success) {
-                    // invoice was sent to user by telegram
-                    // now we wait for payment
-                    return {
-                        success: true,
-                        message: 'Invoice sent! Check your Telegram chat with the bot.',
-                        item_id: itemId,
-                        invoice_id: result.invoice_id
-                    };
+                if (result.success && result.invoice_Link) {
+                    return result.invoice_Link;
                 } else {
-                    return {
-                        success: false,
-                        error: result.error || 'Failed to create invoice'
-                    };
+                    throw new Error(result.error || 'Failed to create invoice');
                 }
+                
             } catch (error) {
                 safeError('Backend call failed:', error);
-                return {
-                    success: false,
-                    error: 'Could not connect to payment server' + error.message
-                };
+                return null;
             }
-        } 
+        },
+
+        openPaymentPopup(invoiceLink) {
+            return new Promise((resolve) => {
+                safeLog('Opening Telegram payment popup with link:', invoiceLink);
+
+                // open the invoice using telegram webapp API
+                window.Telegram.WebApp.openInvoice(invoiceLink, (status) => {
+                    safeLog('Payment popup closed with status:', status);
+
+                    if (status === 'paid') {
+                        safeLog('Payment succesful!');
+                        resolve({
+                            success: true,
+                            message: 'Payment completed succesfully!',
+                            status: 'paid'
+                        });
+                    } else if (status === 'cancelled') {
+                        safeLog('Payment cancelled by user');
+                        resolve({
+                            success: false,
+                            error: 'Payment was cancelled',
+                            status: 'cancelled'
+                        });
+                    } else if (status === 'failed') {
+                        safeLog('Payment failed');
+                        resolve({
+                            success: false,
+                            error: 'Payment failed',
+                            status: 'failed'
+                        });
+                    } else {
+                        safeLog('Payment pending or unkown status:', status);
+                        resolve({
+                            success: false,
+                            error: 'Payment status unknown:' + status,
+                            status: status
+                        });
+                    }
+                });
+            });
+        }
     }
 
     // ===== SINGLE FUNCTION EXPOSURE =====
