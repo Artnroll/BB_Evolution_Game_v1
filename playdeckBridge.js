@@ -108,9 +108,6 @@
 
                 // get invoice from backend
                 const invoiceLink = await this.createInvoiceViaBackend(userId, itemId, starsCost, itemName, itemDescription);
-                if (!invoiceLink) {
-                    return { success: false, error: 'Failed to create invoice'};
-                }
 
                 safeLog('Invoice link received, opening popup...');
 
@@ -149,10 +146,16 @@
 
                 const result = await response.json();
                 safeLog('Backend response:', result);
+                safeLog('Checking result.success:', result.success);
+                safeLog('Checking result.invoice_link:', result.invoice_link);
 
-                if (result.success && result.invoice_link) {
+                if (result.success === true && result.invoice_link) {
+                    safeLog('Returning invoice link:', result.invoice_link);
                     return result.invoice_link;
                 } else {
+                    safeError(' Invoice link check failed');
+                    safeError('result.success =', result.success);
+                    safeError('result.invoice_link =', result.invoice_link);
                     throw new Error(result.error || 'Failed to create invoice');
                 }
                 
