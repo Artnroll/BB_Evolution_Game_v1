@@ -227,8 +227,8 @@
             safeLog('Initializing Adsgram for new block');
             adControllers[blockId] = window.Adsgram.init({
                 blockId: blockId,
-                debug: true,
-                debugConsole: true
+                debug: false,
+                debugConsole: false
             });
         }
 
