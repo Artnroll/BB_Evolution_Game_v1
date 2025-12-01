@@ -3,8 +3,6 @@
     'use strict';
 
     // --- Configuration ----
-    const DEFAULT_AD_BLOCK_ID = '15960';
-    const ADSGRAM_INIT_OPTS = { blockId: DEFAULT_AD_BLOCK_ID, debug: false, debugConsole: true };
     const UNITY_SEND_RETRY_MS = 250;
     const UNITY_SEND_MAX_RETRIES = 30;
 
@@ -56,24 +54,8 @@
         try { window.parent.postMessage({ playdeck: { method: 'gameEnd' } }, '*'); } catch (e) { }
     };
     window.PlayDeck_Analytics = function (eventName, payload) { safeLog('PlayDeck_Analytics (stub):', eventName, payload); };
-    window.PlayDeck_AreAdsAvailable = function () { safeLog('PlayDeck_AreAdsAvailable (stub) -> 0'); return 0; };
-    window.PlayDeck_PreloadAds = function () { safeLog('PlayDeck_PreloadAds (stub)'); };
-    window.PlayDeck_ShowRewardedAdForBlock = function (blockId) {
-        safeLog('PlayDeck_ShowRewardedAdForBlock (stub) called with blockId:', blockId);
-        try { sendToUnity('AdsManager', 'OnAdCompleted', "false"); } catch (e) { }
-    };
-    window.PlayDeck_ShowTaskForBlock = function (blockId) {
-        safeLog('PlayDeck_ShowTaskForBlock (stub) called with', blockId);
-        try { sendToUnity('AdsManager', 'OnTaskCompleted', "false"); } catch (e) { }
-        return 0;
-    };
-    window.PlayDeck_ShowRewardedAd = function () {
-        safeLog('PlayDeck_ShowRewardedAd (stub) called - delegating to block function');
-        try { window.PlayDeck_ShowRewardedAdForBlock(DEFAULT_AD_BLOCK_ID); } catch (e) { safeWarn(e); }
-    };
-
+ 
     // ===== TELEGRAM STARS INTEGRATION =====
-
     const starsIntegration = {
         BACKEND_URL: 'https://telegram-server-payment.onrender.com',
 
@@ -232,82 +214,67 @@
             });
     };
 
-    // ===== ADSGRAM INTEGRATION (KEEPING ORIGINAL) =====
-    let adsState = {
-        methodType: null,
-        controller: null,
-        methodName: null,
-        ready: false,
-        globalName: null
+    // ADSGRAM Integration 
+    const adControllers = {};
+
+    function getAdController(blockId) {
+        if (!window.Adsgram) {
+            safeError('Adsgram SDK not loaded');
+            return null;
+        }
+
+        if (!adControllers[blockId]) {
+            safeLog('Initializing Adsgram for new block');
+            adControllers[blockId] = window.Adsgram.init({
+                blockId: blockId,
+                debug: true,
+                debugConsole: true
+            });
+        }
+
+        return adControllers[blockId];
+    }
+
+    window.PlayDeck_AreAdsAvailable = function () {
+        const available = (window.Adsgram) ? 1 : 0;
+        safeLog('PlayDeck_AreAdsAvailable ->', available);
+        return available;
     };
 
-    function detectAdsGram() {
-        const G = window;
-        const candidateNames = ['AdsGram', 'Adsgram', 'AdsGramSDK', 'AdsgramSDK', 'sad', 'Ads', 'adsgram'];
-        for (const name of candidateNames) {
-            if (G[name]) {
-                safeLog('playdeckBridge: detected AdsGram global as', name);
-                adsState.globalName = name;
-                return G[name];
-            }
+    window.PlayDeck_PreloadAds = function () {
+        if (window.Adsgram) {
+            // Preloads your "Energy" block by default so it's ready faster
         }
-        if (G.sad && (G.sad.AdsGram || G.sad.Adsgram)) {
-            safeLog('playdeckBridge: detected AdsGram under sad namespace');
-            adsState.globalName = 'sad.AdsGram';
-            return G.sad.AdsGram || G.sad.Adsgram;
-        }
-        return null;
-    }
-
-    function initializeAdsGramIfPossible() {
-        const globalAds = detectAdsGram();
-        if (!globalAds) return false;
-
-        // ... rest of AdsGram initialization (unchanged)
-    }
-
-    // Replace ad stubs with real implementations when AdsGram is ready
-    function exposeRealAdFunctions() {
-        window.PlayDeck_AreAdsAvailable = function () {
-            try {
-                const available = (adsState && adsState.ready) ? 1 : 0;
-                safeLog('PlayDeck_AreAdsAvailable ->', available);
-                return Number(available);
-            } catch (e) {
-                safeWarn('PlayDeck_AreAdsAvailable error', e);
-                return 0;
-            }
-        };
-
-        window.PlayDeck_PreloadAds = function () {
-            safeLog('PlayDeck_PreloadAds called');
-            if (!adsState.ready) initializeAdsGramIfPossible();
-        };
-
-        // ... rest of ad function implementations (unchanged)
-    }
-
-    // AdsGram initialization attempts
-    let initAttempts = 0;
-    const maxInitAttempts = 10;
-    const initTimer = setInterval(() => {
-        initAttempts++;
-        if (!adsState.ready) initializeAdsGramIfPossible();
-        if (adsState.ready || initAttempts >= maxInitAttempts) {
-            clearInterval(initTimer);
-            exposeRealAdFunctions();
-            if (!adsState.ready) {
-                safeWarn('playdeckBridge: AdsGram not detected after attempts; using fallback functions.');
-            }
-        }
-    }, 700);
-
-    // ===== EXISTING TELEGRAM USER FUNCTION =====
-    window.getTelegramUserFull = function (unityObjectName, callbackMethod) {
-        // [Keep your existing Telegram user function unchanged]
     };
 
-    // ===== FINAL BRIDGE SETUP =====
+    // This receives the ID strictly from your C# call
+    window.PlayDeck_ShowRewardedAdForBlock = function (blockId) {
+        safeLog(`PlayDeck_ShowRewardedAdForBlock called for: ${blockId}`);
+
+        const controller = getAdController(blockId);
+
+        if (!controller) {
+            safeError('AdController could not be created. Adsgram SDK missing?');
+            // Notify Unity immediately that it failed
+            // Note: We use "false" as a string because Unity SendMessage expects a string
+            return 0;
+        }
+
+        // Show the ad
+        controller.show().then((result) => {
+            // Success: User watched the ad
+            safeLog('Ad finished successfully:', result);
+            sendToUnity('AdsManager', 'OnAdCompleted', "true");
+        }).catch((result) => {
+            // Failure: User skipped, error, or ad not ready
+            safeLog('Ad failed or skipped:', result);
+            sendToUnity('AdsManager', 'OnAdCompleted', "false");
+        });
+
+        // Return 1 to Unity to say "We successfully started the ad process"
+        return 1;
+    };
+    
     window.playDeckBridge = Object.assign(window.playDeckBridge || {}, {
         init: function (unityInstance) { bridge.init(unityInstance); },
         stars: starsIntegration,
