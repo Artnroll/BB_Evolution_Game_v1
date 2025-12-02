@@ -53,8 +53,36 @@
         safeLog('PlayDeck_GameEnd (stub)');
         try { window.parent.postMessage({ playdeck: { method: 'gameEnd' } }, '*'); } catch (e) { }
     };
-    window.PlayDeck_Analytics = function (eventName, payload) { safeLog('PlayDeck_Analytics (stub):', eventName, payload); };
- 
+
+    window.PlayDeck_Analytics = function (eventName, payload) {
+        safeLog('PlayDeck_Analytics called:', eventName, payload);
+
+        // Send to Telegram Analytics if available
+        if (window.telegramAnalytics && typeof window.telegramAnalytics.track === 'function') {
+            try {
+                // Parse payload if it's a JSON string
+                let eventData = {};
+                if (payload && payload !== '{}') {
+                    try {
+                        eventData = JSON.parse(payload);
+                    } catch (e) {
+                        // If not JSON, just use it as a string property
+                        eventData = { data: payload };
+                    }
+                }
+
+                // Send event to Telegram Analytics
+                window.telegramAnalytics.track(eventName, eventData);
+                safeLog('✅ Event sent to Telegram Analytics:', eventName, eventData);
+
+            } catch (error) {
+                safeError('❌ Failed to send analytics event:', error);
+            }
+        } else {
+            safeWarn('⚠️ Telegram Analytics not available yet');
+        }
+    };
+
     // ===== TELEGRAM STARS INTEGRATION =====
     const starsIntegration = {
         BACKEND_URL: 'https://telegram-server-payment.onrender.com',

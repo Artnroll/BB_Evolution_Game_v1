@@ -13,6 +13,27 @@
          If AdsGram gives a different script URL for you, replace this URL with theirs. -->
     <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
+    <!-- Telegram Analytics SDK -->
+    <script 
+            async
+            src="https://tganalytics.xyz/index.js"
+            onload="initTelegramAnalytics()"
+            type="text/javascript">
+
+    </script>
+
+    <script>
+        function initTelegramAnalytics() {
+            if (window.telegramAnalytics) {
+                window.telegramAnalytics.init({
+                    token: 'eyJhcHBfbmFtZSI6ImJpdGJ1bGx6X2V2b2x1dGlvbiIsImFwcF91cmwiOiJodHRwczovL3QubWUvQml0QnVsbHpfRXZvbHV0aW9uX2JvdCIsImFwcF9kb21haW4iOiJodHRwczovL2FydG5yb2xsLmdpdGh1Yi5pby9CQl9Fdm9sdXRpb25fR2FtZV92MSJ9!+gj1ybZMRlfoK1QsL27LkrWBM1DY8edbv3tbJZ5g5w4=',
+                    appName: 'bitbullz_evolution'
+                });
+                console.log('✅ Telegram Analytics initialized');
+            }
+        }
+    </script>
+
     <style>
         :root {
             touch-action: pan-x pan-y; /* allow panning, block pinch zoom */
@@ -231,4 +252,4 @@
         };
     </script>
 </body>
-</html>
+</html>analy
