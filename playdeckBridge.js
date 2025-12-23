@@ -85,7 +85,7 @@
 
     // ===== TELEGRAM STARS INTEGRATION =====
     const starsIntegration = {
-        BACKEND_URL: 'https://bb-telegram-server.onrender.com/',
+        BACKEND_URL: 'https://bb-telegram-server.onrender.com',
 
         // check if telegram stars are available
         isAvailable() {
